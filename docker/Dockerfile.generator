@@ -1,0 +1,20 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY Directory.Build.props ./
+# Önce yalnızca proje dosyaları: kod değişince NuGet restore katmanı önbellekten gelir.
+COPY src/LogPilot.Domain/LogPilot.Domain.csproj                 src/LogPilot.Domain/
+COPY src/LogPilot.Application/LogPilot.Application.csproj       src/LogPilot.Application/
+COPY src/LogPilot.Infrastructure/LogPilot.Infrastructure.csproj src/LogPilot.Infrastructure/
+COPY src/LogPilot.LogGenerator/LogPilot.LogGenerator.csproj     src/LogPilot.LogGenerator/
+RUN dotnet restore src/LogPilot.LogGenerator/LogPilot.LogGenerator.csproj
+COPY src ./src
+RUN dotnet publish src/LogPilot.LogGenerator/LogPilot.LogGenerator.csproj -c Release -o /app --no-restore
+
+FROM mcr.microsoft.com/dotnet/runtime:10.0
+WORKDIR /app
+COPY --from=build /app .
+# RepoPaths, derleme dizininden yukarı doğru "scenarios" ve "seed" klasörlerini arar: /app içinde bulur.
+COPY scenarios ./scenarios
+COPY seed ./seed
+USER $APP_UID
+ENTRYPOINT ["dotnet", "LogPilot.LogGenerator.dll"]

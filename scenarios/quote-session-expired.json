@@ -1,0 +1,57 @@
+{
+  "id": "quote-session-expired",
+  "name": "Quote: session expired before reaching QuoteEngine",
+  "description": "The user's access token has expired, so MobileGateway rejects the quote request with 401. QuoteEngine never receives it: there is NO quote_logs entry. The cause is in authentication, not in the quote system.",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 300,
+    "probability": 0.5
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Quote request received from {device} (app {appVersion}) for {product}.",
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    },
+    {
+      "offsetMs": 40,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Error",
+      "operation": "RequestQuote",
+      "message": "Access token expired for user {userCode}.",
+      "errorCode": "TOKEN_EXPIRED",
+      "exceptionType": "TokenExpiredException",
+      "durationMs": 60
+    },
+    {
+      "offsetMs": 80,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Error",
+      "operation": "RequestQuote",
+      "message": "Quote request rejected for user {userCode}: 401 Unauthorized.",
+      "errorCode": "QUOTE_REQUEST_FAILED",
+      "outcome": "Failure",
+      "durationMs": 80,
+      "metadata": {
+        "statusCode": "401"
+      }
+    }
+  ]
+}

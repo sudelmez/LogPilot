@@ -1,0 +1,111 @@
+{
+  "id": "quote-vehicle-registry-timeout",
+  "name": "Quote: vehicle registry timeout",
+  "description": "The external vehicle registry (SBM) does not answer, so the quote fails. The mobile app only logs the symptom QUOTE_REQUEST_FAILED (502); the root cause VEHICLE_REGISTRY_TIMEOUT is only visible in `quote_logs` (same correlationId / quoteId).",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 3,
+    "spacingMs": 8000
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 300,
+    "probability": 0.5
+  },
+  "quote": {
+    "channel": "Mobile",
+    "products": [
+      "Kasko",
+      "Trafik"
+    ]
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Quote request received from {device} (app {appVersion}) for {product}.",
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    },
+    {
+      "offsetMs": 30,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Access token validated for user {userCode}.",
+      "durationMs": 40
+    },
+    {
+      "offsetMs": 60,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteRequested",
+      "message": "Quote {quoteId} requested via {channel} for {product} (customer {customerNo}).",
+      "metadata": {
+        "plate": "{plate}"
+      }
+    },
+    {
+      "offsetMs": 150,
+      "target": "Quote",
+      "service": "CustomerRegistryService",
+      "level": "Information",
+      "operation": "CustomerVerification",
+      "message": "Customer identity verified against the customer master (KPS check passed).",
+      "durationMs": 80
+    },
+    {
+      "offsetMs": 5200,
+      "target": "Quote",
+      "service": "VehicleRegistryGateway",
+      "level": "Error",
+      "operation": "VehicleLookup",
+      "message": "Vehicle registry (SBM) did not respond within 5000 ms for plate {plate}.",
+      "errorCode": "VEHICLE_REGISTRY_TIMEOUT",
+      "exceptionType": "TimeoutException",
+      "durationMs": 5000,
+      "metadata": {
+        "provider": "SBM",
+        "timeoutMs": "5000"
+      }
+    },
+    {
+      "offsetMs": 5250,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Error",
+      "operation": "QuoteFailed",
+      "message": "Quote {quoteId} failed at step VehicleLookup.",
+      "errorCode": "QUOTE_FAILED",
+      "outcome": "Failure",
+      "exceptionType": "QuoteFailedException",
+      "durationMs": 5190
+    },
+    {
+      "offsetMs": 5300,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Error",
+      "operation": "RequestQuote",
+      "message": "Quote request failed for user {userCode}: QuoteEngine returned 502 Bad Gateway.",
+      "errorCode": "QUOTE_REQUEST_FAILED",
+      "outcome": "Failure",
+      "exceptionType": "HttpRequestException",
+      "durationMs": 5300,
+      "metadata": {
+        "statusCode": "502",
+        "quoteId": "{quoteId}"
+      }
+    }
+  ]
+}

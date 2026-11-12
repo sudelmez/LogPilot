@@ -1,0 +1,20 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY Directory.Build.props ./
+# Önce yalnızca proje dosyaları: kod değişince NuGet restore katmanı önbellekten gelir.
+COPY src/LogPilot.Domain/LogPilot.Domain.csproj                 src/LogPilot.Domain/
+COPY src/LogPilot.Application/LogPilot.Application.csproj       src/LogPilot.Application/
+COPY src/LogPilot.Infrastructure/LogPilot.Infrastructure.csproj src/LogPilot.Infrastructure/
+COPY src/LogPilot.AI/LogPilot.AI.csproj                         src/LogPilot.AI/
+COPY src/LogPilot.Api/LogPilot.Api.csproj                       src/LogPilot.Api/
+RUN dotnet restore src/LogPilot.Api/LogPilot.Api.csproj
+COPY src ./src
+RUN dotnet publish src/LogPilot.Api/LogPilot.Api.csproj -c Release -o /app --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /app .
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+USER $APP_UID
+ENTRYPOINT ["dotnet", "LogPilot.Api.dll"]

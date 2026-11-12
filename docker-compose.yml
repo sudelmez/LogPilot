@@ -1,0 +1,105 @@
+# LogPilot: tüm uygulama Docker'da.
+#   Tek tık:  start.command (Finder'da çift tıkla)  veya  ./scripts/docker-up.sh
+#   Elle:     docker compose up -d --build --wait
+#   Durdur:   stop.command  veya  docker compose down          (veri korunur)
+#   Sıfırla:  docker compose down -v                            (MongoDB verisi SİLİNİR)
+#
+#   UI: http://localhost:5173   API: http://localhost:5080/scalar   Sağlık: http://localhost:5080/health
+#
+# Yalnızca MongoDB (yerel geliştirme, scripts/start-local.sh):  docker compose up -d --wait mongo
+#
+# Portlar ve ayarlar .env dosyasıyla değiştirilebilir (bkz. .env.example).
+
+name: logpilot
+
+x-dotnet-env: &dotnet-env
+  Mongo__ConnectionString: mongodb://mongo:27017
+  Mongo__DatabaseName: ${LOGPILOT_DB:-logpilot}
+  Mongo__LogRetentionHours: ${LOGPILOT_LOG_RETENTION_HOURS:-24}
+  Logging__Json: "true"
+  TZ: ${TZ:-Europe/Istanbul}
+
+services:
+  mongo:
+    image: mongo:8
+    container_name: logpilot-mongo
+    restart: on-failure:5
+    ports:
+      - "127.0.0.1:${LOGPILOT_MONGO_PORT:-27017}:27017"   # sadece localhost'a açık
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    image: logpilot-api
+    container_name: logpilot-api
+    restart: on-failure:5
+    environment:
+      <<: *dotnet-env
+      ASPNETCORE_ENVIRONMENT: Development      # /scalar ve /openapi açık kalsın (yerel demo)
+      Ai__Provider: ${LOGPILOT_AI_PROVIDER:-Mock}
+      Ai__Claude__Model: ${LOGPILOT_AI_MODEL:-claude-opus-5-5}
+      Ai__Claude__ChatEffort: ${LOGPILOT_AI_EFFORT:-medium}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}     # yalnızca .env'den; imaja girmez
+      # Ollama Mac'te çalışır (Docker Mac'te GPU kullanamaz); konteyner ona host.docker.internal ile ulaşır.
+      Ai__Ollama__BaseUrl: ${LOGPILOT_OLLAMA_URL:-http://host.docker.internal:11434}
+      Ai__Ollama__Model: ${LOGPILOT_OLLAMA_MODEL:-qwen3:8b}
+      Incidents__Enabled: "true"
+      Incidents__AutoSummarize: ${LOGPILOT_AI_AUTO_SUMMARY:-true}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Linux'ta da Mac/Windows gibi çalışsın
+    ports:
+      - "127.0.0.1:${LOGPILOT_API_PORT:-5080}:8080"
+
+  generator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.generator
+    image: logpilot-generator
+    container_name: logpilot-generator
+    restart: on-failure:5
+    environment:
+      <<: *dotnet-env
+      # Boş veritabanında ilk açılışta bu kadar dakikalık geçmiş log üretilir (veri varsa atlanır).
+      Generator__InitialBackfillMinutes: ${LOGPILOT_BACKFILL_MINUTES:-120}
+      Generator__NormalTraffic__Enabled: ${LOGPILOT_NORMAL_TRAFFIC:-true}
+      Generator__NormalTraffic__MinIntervalSeconds: ${LOGPILOT_TRAFFIC_MIN_SECONDS:-60}
+      Generator__NormalTraffic__MaxIntervalSeconds: ${LOGPILOT_TRAFFIC_MAX_SECONDS:-120}
+      Generator__Scheduler__IntervalMultiplier: ${LOGPILOT_INCIDENT_INTERVAL_MULTIPLIER:-3}
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ui
+    image: logpilot-ui
+    container_name: logpilot-ui
+    restart: on-failure:5
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${LOGPILOT_UI_PORT:-5173}:80"
+    # UI → nginx → API → MongoDB zincirinin tamamını doğrular; "up --wait" buna göre bekler.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+volumes:
+  mongo-data:

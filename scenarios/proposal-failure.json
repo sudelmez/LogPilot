@@ -1,0 +1,64 @@
+{
+  "id": "proposal-failure",
+  "name": "Proposal creation failure",
+  "description": "A proposal request is received but ProposalService fails because the pricing dependency is unavailable.",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "minCount": 1,
+    "maxCount": 3,
+    "spacingMs": 6000
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 240,
+    "probability": 0.5
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Information",
+      "operation": "CreateProposal",
+      "message": "Proposal request received for user {userCode}.",
+      "metadata": {
+        "proposalType": "Standard"
+      }
+    },
+    {
+      "offsetMs": 60,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Information",
+      "operation": "CreateProposal",
+      "message": "Validating proposal request."
+    },
+    {
+      "offsetMs": 2150,
+      "application": "ProposalApp",
+      "service": "PricingService",
+      "level": "Error",
+      "operation": "CreateProposal",
+      "message": "Pricing dependency returned 503 Service Unavailable.",
+      "errorCode": "DEPENDENCY_UNAVAILABLE",
+      "exceptionType": "HttpRequestException",
+      "durationMs": 2000,
+      "metadata": {
+        "statusCode": "503"
+      }
+    },
+    {
+      "offsetMs": 2200,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Error",
+      "operation": "CreateProposal",
+      "message": "Proposal creation failed for user {userCode}: pricing dependency unavailable.",
+      "outcome": "Failure",
+      "errorCode": "PROPOSAL_CREATION_FAILED",
+      "exceptionType": "ProposalCreationException",
+      "durationMs": 2200
+    }
+  ]
+}

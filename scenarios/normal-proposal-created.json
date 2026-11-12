@@ -1,0 +1,45 @@
+{
+  "id": "normal-proposal-created",
+  "name": "Normal: proposal created",
+  "description": "Routine successful proposal creation.",
+  "kind": "Normal",
+  "users": {
+    "status": "Active",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "weight": 25
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Information",
+      "operation": "CreateProposal",
+      "message": "Proposal request received for user {userCode}."
+    },
+    {
+      "offsetMs": 100,
+      "application": "ProposalApp",
+      "service": "PricingService",
+      "level": "Information",
+      "operation": "CreateProposal",
+      "message": "Price calculated for proposal.",
+      "durationMs": 140
+    },
+    {
+      "offsetMs": 400,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Information",
+      "operation": "CreateProposal",
+      "message": "Proposal created for user {userCode}.",
+      "outcome": "Success",
+      "durationMs": 320
+    }
+  ]
+}

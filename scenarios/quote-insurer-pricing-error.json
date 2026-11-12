@@ -1,0 +1,148 @@
+{
+  "id": "quote-insurer-pricing-error",
+  "name": "Quote: one insurer fails to price",
+  "description": "Insurer INS_NRD's pricing API returns HTTP 500. The quote is still issued, but with 2 offers instead of 3. The mobile app logs success: the problem is only visible in `quote_logs` (insurer breakdown).",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 4,
+    "spacingMs": 5000
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 240,
+    "probability": 0.6
+  },
+  "quote": {
+    "channel": "Mobile",
+    "products": [
+      "Kasko"
+    ]
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Quote request received from {device} (app {appVersion}) for {product}.",
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    },
+    {
+      "offsetMs": 30,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Access token validated for user {userCode}.",
+      "durationMs": 40
+    },
+    {
+      "offsetMs": 60,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteRequested",
+      "message": "Quote {quoteId} requested via {channel} for {product} (customer {customerNo}).",
+      "metadata": {
+        "plate": "{plate}"
+      }
+    },
+    {
+      "offsetMs": 150,
+      "target": "Quote",
+      "service": "CustomerRegistryService",
+      "level": "Information",
+      "operation": "CustomerVerification",
+      "message": "Customer identity verified against the customer master (KPS check passed).",
+      "durationMs": 80
+    },
+    {
+      "offsetMs": 400,
+      "target": "Quote",
+      "service": "VehicleRegistryGateway",
+      "level": "Information",
+      "operation": "VehicleLookup",
+      "message": "Vehicle registry (SBM) returned vehicle and damage history for plate {plate}.",
+      "durationMs": 230,
+      "metadata": {
+        "provider": "SBM"
+      }
+    },
+    {
+      "offsetMs": 600,
+      "target": "Quote",
+      "service": "RiskScoringService",
+      "level": "Information",
+      "operation": "RiskScoring",
+      "message": "Risk score calculated: 0.34 (auto-underwriting limit 0.85).",
+      "durationMs": 150
+    },
+    {
+      "offsetMs": 1500,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_AKS returned a premium offer.",
+      "insurerCode": "INS_AKS",
+      "premiumAmount": 14500,
+      "durationMs": 800
+    },
+    {
+      "offsetMs": 3600,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Error",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_NRD pricing API returned 500 Internal Server Error.",
+      "insurerCode": "INS_NRD",
+      "errorCode": "INSURER_PRICING_ERROR",
+      "exceptionType": "HttpRequestException",
+      "durationMs": 3000,
+      "metadata": {
+        "statusCode": "500"
+      }
+    },
+    {
+      "offsetMs": 1900,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_GNS returned a premium offer.",
+      "insurerCode": "INS_GNS",
+      "premiumAmount": 13900,
+      "durationMs": 1100
+    },
+    {
+      "offsetMs": 3700,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Warning",
+      "operation": "QuoteIssued",
+      "message": "Quote {quoteId} issued with 2 of 3 offers (INS_NRD missing).",
+      "outcome": "Success",
+      "durationMs": 3640
+    },
+    {
+      "offsetMs": 3750,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Quote {quoteId} displayed to user {userCode}.",
+      "outcome": "Success",
+      "durationMs": 3750,
+      "metadata": {
+        "quoteId": "{quoteId}"
+      }
+    }
+  ]
+}

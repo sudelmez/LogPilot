@@ -1,0 +1,66 @@
+{
+  "id": "auth-service-timeout",
+  "name": "Authentication service timeout",
+  "description": "AuthenticationService responds slowly; several users hit REQUEST_TIMEOUT and fail to log in.",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "minCount": 5,
+    "maxCount": 8,
+    "spacingMs": 3000
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 600,
+    "probability": 0.3
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "Login",
+      "message": "Login request received from {device} (app {appVersion}).",
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    },
+    {
+      "offsetMs": 100,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Warning",
+      "operation": "Login",
+      "message": "AuthenticationService is responding slowly.",
+      "durationMs": 4800
+    },
+    {
+      "offsetMs": 5100,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Error",
+      "operation": "Login",
+      "message": "Call to AuthenticationService exceeded the 5000 ms timeout.",
+      "errorCode": "REQUEST_TIMEOUT",
+      "exceptionType": "TimeoutException",
+      "durationMs": 5000
+    },
+    {
+      "offsetMs": 5150,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Error",
+      "operation": "Login",
+      "message": "Login failed for user {userCode}: authentication service unavailable.",
+      "outcome": "Failure",
+      "errorCode": "LOGIN_FAILED",
+      "durationMs": 5150,
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "id": "token-expired",
+  "name": "Token expired",
+  "description": "A user's access token has expired, so the login is rejected. AuthenticationService logs TOKEN_EXPIRED and MobileApp logs LOGIN_FAILED.",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0,
+    "userCodes": [
+      "TCLI",
+      "ALEX",
+      "BOB"
+    ]
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 120,
+    "probability": 0.6
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "Login",
+      "message": "Login request received from {device} (app {appVersion}).",
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    },
+    {
+      "offsetMs": 40,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Information",
+      "operation": "Login",
+      "message": "Validating access token for user {userCode}.",
+      "durationMs": 60
+    },
+    {
+      "offsetMs": 120,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Error",
+      "operation": "Login",
+      "message": "Access token expired for user {userCode}.",
+      "errorCode": "TOKEN_EXPIRED",
+      "exceptionType": "TokenExpiredException",
+      "durationMs": 80
+    },
+    {
+      "offsetMs": 160,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Error",
+      "operation": "Login",
+      "message": "Login failed for user {userCode}: authentication rejected.",
+      "outcome": "Failure",
+      "errorCode": "LOGIN_FAILED",
+      "durationMs": 160,
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    }
+  ]
+}

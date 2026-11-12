@@ -1,0 +1,45 @@
+{
+  "id": "normal-slow-request",
+  "name": "Normal: slow request",
+  "description": "A slow but successful request that produces a Warning log.",
+  "kind": "Normal",
+  "users": {
+    "status": "Active",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "weight": 7
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Information",
+      "operation": "GetProposalStatus",
+      "message": "Status request received for user {userCode}."
+    },
+    {
+      "offsetMs": 3000,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Warning",
+      "operation": "GetProposalStatus",
+      "message": "Request processing is slow.",
+      "durationMs": 3000
+    },
+    {
+      "offsetMs": 3400,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Information",
+      "operation": "GetProposalStatus",
+      "message": "Status request completed for user {userCode}.",
+      "outcome": "Success",
+      "durationMs": 3400
+    }
+  ]
+}

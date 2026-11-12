@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LogPilot Soru Akışı</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #5d6673; --line: #d5dae1;
+    --ui: #2563eb;      --ui-soft: #e8efff;
+    --be: #0f766e;      --be-soft: #e3f4f1;
+    --llm: #7c3aed;     --llm-soft: #f1eaff;
+    --db: #b45309;      --db-soft: #fdf1e2;
+    --stop: #b91c1c;    --stop-soft: #fdecec;
+    --ok: #15803d;      --ok-soft: #e6f6eb;
+    --code-bg: #f1f3f6;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216; --panel: #171b21; --text: #e6e9ee; --muted: #9aa3af; --line: #2c333d;
+      --ui: #7aa2ff;  --ui-soft: #1a2440;
+      --be: #4fd1c0;  --be-soft: #12302c;
+      --llm: #b794ff; --llm-soft: #271d3d;
+      --db: #f0b46a;  --db-soft: #35260f;
+      --stop: #ff8a8a; --stop-soft: #3a1717;
+      --ok: #6fdc8c;  --ok-soft: #12301c;
+      --code-bg: #20262e;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1216; --panel: #171b21; --text: #e6e9ee; --muted: #9aa3af; --line: #2c333d;
+    --ui: #7aa2ff;  --ui-soft: #1a2440;
+    --be: #4fd1c0;  --be-soft: #12302c;
+    --llm: #b794ff; --llm-soft: #271d3d;
+    --db: #f0b46a;  --db-soft: #35260f;
+    --stop: #ff8a8a; --stop-soft: #3a1717;
+    --ok: #6fdc8c;  --ok-soft: #12301c;
+    --code-bg: #20262e;
+    --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.01em; }
+  h2 { font-size: 19px; margin: 44px 0 6px; }
+  .lead { color: var(--muted); margin: 0 0 20px; max-width: 760px; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+
+  /* ---- lejant ---- */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 4px 0 24px; font-size: 13px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+  /* ---- örnek soru ---- */
+  .example {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow);
+    display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap;
+  }
+  .example b { font-size: 16px; }
+
+  /* ---- ana akış ---- */
+  .flow { position: relative; margin-top: 20px; }
+  .step { position: relative; display: grid; grid-template-columns: 44px 1fr; gap: 14px; padding-bottom: 18px; }
+  .step::before {                                  /* dikey bağlantı çizgisi */
+    content: ""; position: absolute; left: 21px; top: 44px; bottom: 0; width: 2px; background: var(--line);
+  }
+  .step:last-child::before { display: none; }
+  .num {
+    width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff;
+    background: var(--c); position: relative; z-index: 1; font-size: 15px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 10px;
+    padding: 12px 16px; box-shadow: var(--shadow); min-width: 0;
+  }
+  .card h3 { margin: 0; font-size: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .tag { font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
+         color: var(--c); background: var(--soft); }
+  .where { font-size: 12.5px; color: var(--muted); margin: 2px 0 8px; }
+  .card ul { margin: 6px 0 0; padding-left: 18px; }
+  .card li { margin: 2px 0; }
+  .ex { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--soft); font-size: 13.5px; }
+  .ex::before { content: "Örnekte: "; font-weight: 600; color: var(--c); }
+
+  .ui  { --c: var(--ui);  --soft: var(--ui-soft); }
+  .be  { --c: var(--be);  --soft: var(--be-soft); }
+  .llm { --c: var(--llm); --soft: var(--llm-soft); }
+  .db  { --c: var(--db);  --soft: var(--db-soft); }
+  .okk { --c: var(--ok);  --soft: var(--ok-soft); }
+
+  /* karar noktası: yan çıkışlar */
+  .exits { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .exit {
+    font-size: 12.5px; border-radius: 8px; padding: 6px 10px; border: 1px dashed var(--stop); color: var(--stop); background: var(--stop-soft);
+  }
+  .exit.go { border-color: var(--ok); color: var(--ok); background: var(--ok-soft); }
+  .exit b { font-weight: 700; }
+
+  /* döngü kutusu */
+  .loop {
+    margin: 4px 0 18px 58px; border: 2px dashed var(--llm); border-radius: 14px; padding: 14px 14px 4px; position: relative;
+  }
+  .loop-title {
+    position: absolute; top: -12px; left: 14px; background: var(--bg); padding: 0 8px; font-size: 13px; font-weight: 700; color: var(--llm);
+  }
+  .loop .step { grid-template-columns: 36px 1fr; }
+  .loop .num { width: 36px; height: 36px; font-size: 13px; }
+  .loop .step::before { left: 17px; top: 36px; }
+  .back {
+    font-size: 12.5px; color: var(--llm); margin: -6px 0 12px 50px; display: flex; align-items: center; gap: 6px;
+  }
+
+  /* ---- zincir ---- */
+  .chain { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin-top: 18px; align-items: stretch; }
+  .hop { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--c); border-radius: 10px; padding: 12px 14px;
+         box-shadow: var(--shadow); position: relative; margin-right: 26px; }
+  .hop:last-child { margin-right: 0; }
+  .hop:not(:last-child)::after {                     /* yatay ok */
+    content: "→"; position: absolute; right: -24px; top: 50%; transform: translateY(-50%); font-size: 20px; color: var(--muted);
+  }
+  .hop .k { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); font-weight: 600; }
+  .hop h4 { margin: 2px 0 6px; font-size: 15px; }
+  .hop p { margin: 4px 0; font-size: 13.5px; }
+  .hop .key { display: inline-block; margin-top: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--soft); color: var(--c); }
+
+  /* ---- güvenlik katmanları ---- */
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; box-shadow: var(--shadow); }
+  .box h4 { margin: 0 0 6px; font-size: 15px; }
+  .box ol, .box ul { margin: 4px 0 0; padding-left: 18px; font-size: 14px; }
+
+  /* sonuç */
+  .result { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 14px; box-shadow: var(--shadow); }
+  .result dl { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; margin: 0; font-size: 14px; }
+  .result dt { color: var(--muted); }
+  .result dd { margin: 0; }
+
+  .theme { position: fixed; top: 12px; right: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+           border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+
+  @media (max-width: 760px) {
+    .chain { grid-template-columns: 1fr; }
+    .hop { margin-right: 0; margin-bottom: 26px; }
+    .hop:not(:last-child)::after { content: "↓"; right: auto; left: 50%; top: auto; bottom: -26px; transform: translateX(-50%); }
+    .grid { grid-template-columns: 1fr; }
+    .loop { margin-left: 0; }
+    .result dl { grid-template-columns: 1fr; }
+    .result dt { margin-top: 6px; }
+  }
+</style>
+</head>
+<body>
+<button class="theme" id="theme" type="button" aria-label="Tema değiştir">◐ Tema</button>
+<div class="wrap">
+
+  <h1>LogPilot: bir soru cevaba nasıl dönüşür?</h1>
+  <p class="lead">
+    Kullanıcının yazdığı sorudan ekrandaki cevaba kadar her adım. Renkler adımı kimin yaptığını gösterir.
+    Kırmızı kesikli kutular, akışın o noktada durup kibar bir ret döndüğü çıkışlardır.
+  </p>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--ui)"></i>Kullanıcı / arayüz</span>
+    <span><i class="dot" style="background:var(--be)"></i>Backend (C#, kural tabanlı)</span>
+    <span><i class="dot" style="background:var(--llm)"></i>LLM (Ollama qwen3:8b veya Claude)</span>
+    <span><i class="dot" style="background:var(--db)"></i>MongoDB (salt-okunur AI hesabı)</span>
+    <span><i class="dot" style="background:var(--stop)"></i>Ret / durma</span>
+  </div>
+
+  <div class="example">
+    <span class="tag" style="--c:var(--ui);--soft:var(--ui-soft)">Örnek soru</span>
+    <b>“BOB'a poliçe SMS'i ulaştı mı?”</b>
+    <span style="color:var(--muted);font-size:13px">Canlı sistemde Ollama ile çalıştırıldı: 102 sn, 1 araç çağrısı</span>
+  </div>
+
+  <!-- ===================== ANA AKIŞ ===================== -->
+  <div class="flow">
+
+    <div class="step ui">
+      <div class="num">1</div>
+      <div class="card">
+        <h3>Kullanıcı soruyu yazar <span class="tag">Arayüz</span></h3>
+        <div class="where">AssistantPage → <code>POST /api/chat/sessions/{id}/messages</code></div>
+        <ul>
+          <li>Soru metni + seçili zaman aralığı (varsayılan: son 24 saat) gönderilir.</li>
+        </ul>
+        <div class="ex">“BOB'a poliçe SMS'i ulaştı mı?”, aralık: son 24 saat</div>
+      </div>
+    </div>
+
+    <div class="step be">
+      <div class="num">2</div>
+      <div class="card">
+        <h3>Ön kontrol, zaman aralığı ve KVKK maskeleme <span class="tag">ChatService</span></h3>
+        <div class="where">src/LogPilot.AI/Chat/ChatService.cs</div>
+        <ul>
+          <li>Boş mu, 2000 karakteri aşıyor mu? Aralık 7 günden uzun mu?</li>
+          <li>Soruda “son 15 dakika”, “bugün” gibi bir süre varsa aralık ona göre daraltılır.</li>
+          <li>Kişisel veri <b>kaydedilmeden önce</b> maskelenir: telefon → <code>[MASKED_PHONE]</code>, kimlik no, e-posta, plaka, IBAN…</li>
+          <li>Kullanıcı mesajı <code>chat_messages</code> tablosuna yazılır (uygulama hesabıyla).</li>
+        </ul>
+        <div class="exits"><span class="exit"><b>Hata:</b> boş / çok uzun soru, geçersiz aralık → 400</span></div>
+        <div class="ex">Kişisel veri yok; soru olduğu gibi kalır.</div>
+      </div>
+    </div>
+
+    <div class="step be">
+      <div class="num">3</div>
+      <div class="card">
+        <h3>Kapsam koruması: soruyu cevaplamalı mıyım? <span class="tag">ScopeGuard</span></h3>
+        <div class="where">src/LogPilot.AI/Security/ScopeGuard.cs · LLM'den ÖNCE, maliyetsiz</div>
+        <div class="exits">
+          <span class="exit"><b>Abusive</b> (argo/hakaret) → “Bu şekilde ifade edilen bir talebe yardımcı olamıyorum.”</span>
+          <span class="exit"><b>NotPermitted</b> (sil/güncelle/sıfırla) → “Bu işlemi yapma yetkim yok…”</span>
+          <span class="exit"><b>OffTopic</b> (kasko nedir, şirket, hava…) → “Bu konuda yardımcı olamıyorum…”</span>
+          <span class="exit go"><b>InScope / Unclear</b> → devam</span>
+        </div>
+        <div class="ex">“SMS”, “ulaştı” sinyalleri var → <b>InScope</b>.</div>
+      </div>
+    </div>
+
+    <div class="step be">
+      <div class="num">4</div>
+      <div class="card">
+        <h3>Soruyu sınıflandır ve kimlikleri çıkar <span class="tag">InvestigationPlaybooks</span></h3>
+        <div class="where">src/LogPilot.AI/Prompts/InvestigationPlaybooks.cs</div>
+        <ul>
+          <li>Tetikleyici kelimeler + öncelik + “belirli kişi var mı” kuralı ile P1–P8'den biri seçilir.</li>
+          <li>Sorudaki somut kimlikler çıkarılır: kullanıcı kodu, müşteri no (CUS-), teklif no (TKL-), poliçe no (POL-).</li>
+          <li>Modele bağlayıcı olmayan bir <b>yönlendirme ipucu</b> hazırlanır.</li>
+        </ul>
+        <div class="ex">P6 “Bildirim SMS'i müşteriye ulaştı mı?”, yol: quote_logs → users → sms_logs,
+          araç: TraceNotificationDelivery, kimlik: <code>userCode=BOB</code></div>
+      </div>
+    </div>
+
+    <div class="step be">
+      <div class="num">5</div>
+      <div class="card">
+        <h3>Sistem prompt'unu kur <span class="tag">SystemPrompts</span></h3>
+        <div class="where">src/LogPilot.AI/Prompts/SystemPrompts.cs</div>
+        <ul>
+          <li><b>Rol ve yetki:</b> salt-okunur analist; veri değiştiremez, maskeli değerleri tahmin edemez.</li>
+          <li><b>Kurallar:</b> önce araçla incele, uydurma yok, semptom ≠ kök neden, çözüldü iddiası için kanıt, sorunun dilinde cevap…</li>
+          <li><b>Veri kataloğu:</b> 4 tablo, anahtarları ve tablolar arası köprüler (kayıt defterinden otomatik üretilir).</li>
+          <li><b>Playbook'lar</b>, hata kodu anlamları, yönlendirme ipucu ve beklenen JSON cevap şeması.</li>
+          <li>Aynı oturumun son 10 mesajı geçmiş olarak eklenir (eski araç verisi taşınmaz).</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===================== LLM DÖNGÜSÜ ===================== -->
+  <div class="loop">
+    <div class="loop-title">↻ Araştırma döngüsü (en fazla 5 tur, toplam 8 araç çağrısı)</div>
+
+    <div class="step llm">
+      <div class="num">6</div>
+      <div class="card">
+        <h3>LLM karar verir: hangi araç, hangi parametre? <span class="tag">LLM</span></h3>
+        <div class="where">ChatOrchestrator → ILlmProvider (Ollama / Claude)</div>
+        <ul>
+          <li>Ya bir veya birkaç <b>araç çağrısı</b> ister, ya da <b>son cevabı</b> (JSON) yazar.</li>
+          <li>Hiç veriye bakmadan tahmin yazarsa bir kez geri çevrilir: “önce araçlarla incele”.</li>
+        </ul>
+        <div class="ex">1. deneme (düzeltmeden önce): <code>TraceNotificationDelivery {"quoteId":"TKL-1234567890"}</code> ← uydurma!<br>
+          Şimdi: <code>TraceNotificationDelivery {"userCode":"BOB"}</code></div>
+      </div>
+    </div>
+
+    <div class="step be">
+      <div class="num">7</div>
+      <div class="card">
+        <h3>Uydurma kimlik kontrolü <span class="tag">ArgumentGrounding</span></h3>
+        <div class="where">src/LogPilot.AI/Security/ArgumentGrounding.cs</div>
+        <ul>
+          <li>userCode, customerNo, quoteId, policyNo, correlationId… değeri soruda ya da önceki bir araç sonucunda geçmiş olmalı.</li>
+        </ul>
+        <div class="exits">
+          <span class="exit"><b>Uydurma</b> → araç çalıştırılmaz; modele “sorudaki kimlik userCode=BOB, onu kullan” denir ve 6. adıma dönülür</span>
+          <span class="exit go"><b>Temellendirilmiş</b> → devam</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step be">
+      <div class="num">8</div>
+      <div class="card">
+        <h3>Aracı doğrula ve çalıştır <span class="tag">ToolRegistry</span></h3>
+        <div class="where">src/LogPilot.AI/Tools/ToolRegistry.cs → LogAnalysisTools</div>
+        <ul>
+          <li>Katı JSON şeması: tanımsız alan reddedilir, kimlikler kalıpla sınırlı, sonuç sayısı sınırlı.</li>
+          <li>Zaman aralığının dışına çıkılamaz; araç başına 10 sn zaman aşımı.</li>
+          <li>Araç yalnızca <b>okuma arayüzlerini</b> görür (ILogReader, IQuoteLogReader, ISmsLogReader, IUserReader…). Yazma metodu yok.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step db">
+      <div class="num">9</div>
+      <div class="card">
+        <h3>MongoDB'den oku: zincirleme arama <span class="tag">MongoDB</span></h3>
+        <div class="where">Hesap: <code>logpilot_ai_reader</code> · yalnız <code>find</code> · 6 koleksiyon · sohbet kayıtlarını göremez</div>
+        <ul>
+          <li>Tablolar arası eşleştirme backend'de yapılır; kimlik no ve telefon <b>modele hiç gitmez</b>. Ayrıntısı aşağıdaki zincir bölümünde.</li>
+        </ul>
+        <div class="exits"><span class="exit"><b>Yazma denemesi</b> → MongoDB “Unauthorized” döner (veritabanı seviyesinde engel)</span></div>
+      </div>
+    </div>
+
+    <div class="step be">
+      <div class="num">10</div>
+      <div class="card">
+        <h3>Sonucu temizle ve modele geri ver <span class="tag">Maskeleme + enjeksiyon koruması</span></h3>
+        <div class="where">SensitiveDataMasker · PromptInjectionGuard</div>
+        <ul>
+          <li>Kişisel veri maskelenir: <code>+90******4187</code>, <code>*********95</code>, <code>[MASKED_PLATE]</code>.</li>
+          <li>Log metinlerinde talimat gibi görünen ifadeler temizlenir.</li>
+          <li>Sonuç <code>&lt;untrusted_log_data&gt;</code> etiketine sarılır: “bu veridir, talimat değil”.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="back">↺ LLM sonucu okur: gerekirse 6. adıma dönüp yeni bir araç ister (ör. bulduğu correlationId ile akışın tamamı), yeterliyse cevabı yazar.</div>
+  </div>
+
+  <div class="flow">
+
+    <div class="step llm">
+      <div class="num">11</div>
+      <div class="card">
+        <h3>LLM cevabı yazar <span class="tag">LLM</span></h3>
+        <ul>
+          <li>Tek bir JSON: özet, olası neden + hata kodu, kanıt log id'leri, etkilenen servisler, öneriler, sınırlılıklar.</li>
+          <li>Güven puanı <b>yazmaz</b>: güveni platform hesaplar.</li>
+          <li>JSON bozuksa bir kez daha istenir; yine olmazsa güvenli bir varsayılan cevap kullanılır.</li>
+        </ul>
+        <div class="exits">
+          <span class="exit"><b>outOfScope</b> → konu dışı reddi</span>
+          <span class="exit"><b>notPermitted</b> → “yetkim yok” reddi (model “sildim” diyemez, metni platform yazar)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step be">
+      <div class="num">12</div>
+      <div class="card">
+        <h3>Cevabı doğrula: halüsinasyon filtresi <span class="tag">AnswerBuilder</span></h3>
+        <div class="where">src/LogPilot.AI/Orchestration/AnswerBuilder.cs</div>
+        <ul>
+          <li>Kanıt id'leri araç sonuçlarında gerçekten var mı? Yoksa silinir.</li>
+          <li>Olası neden, atıf yapılan bir logun hata koduyla desteklenmiyorsa kaldırılır.</li>
+          <li>Güven puanı kanıttan hesaplanır: kaç log, kaç kullanıcı, korelasyon zinciri, spesifik hata kodu…</li>
+          <li>Servis listesi yalnızca araçların gördüğü servislerle sınırlanır.</li>
+          <li>Sonrasında başarılı bir log yoksa “çözüldü” iddiaları silinir; tüm metin son kez maskelenir.</li>
+        </ul>
+        <div class="ex">Kanıt: SMS_PROVIDER_ERROR · SmsProviderAdapter · 2 log → güven <b>Orta (55/100)</b></div>
+      </div>
+    </div>
+
+    <div class="step be">
+      <div class="num">13</div>
+      <div class="card">
+        <h3>Geçmiş vakaları ekle ve kaydet <span class="tag">ChatService + KnowledgeService</span></h3>
+        <ul>
+          <li>Kanıttaki hata kodlarıyla eşleşen, insanların doğruladığı geçmiş çözümler cevaba eklenir (ipucu, kanıt değil).</li>
+          <li>Asistan mesajı, kullanılan araçlar ve süreleriyle birlikte <code>chat_messages</code>'a yazılır.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step ui">
+      <div class="num">14</div>
+      <div class="card">
+        <h3>Cevap ekranda <span class="tag">Arayüz</span></h3>
+        <ul>
+          <li>Özet, olası neden, güven çubuğu, kanıt kartları, öneriler, sınırlılıklar.</li>
+          <li>Kanıta tıklanınca log detayı açılır (<code>/api/logs/{id}</code>: logs, quote_logs ve sms_logs tablolarının üçüne de bakar).</li>
+          <li>👍 + “gerçek çözüm” notu → <code>knowledge_cases</code>: sonraki benzer sorularda ipucu olur. Sistem böyle öğrenir.</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===================== ZİNCİR ===================== -->
+  <h2>9. adımın içi: üç tablo arasında zincirleme arama</h2>
+  <p class="lead">
+    SMS sistemi müşteriyi, teklifi veya poliçeyi tanımaz; tek bildiği telefon numarasıdır. Bu yüzden cevaba ancak tablolar
+    arasında sırayla geçilerek ulaşılır. Soru bir kişiyle başladığı için sıra <b>users → quote_logs → sms_logs</b> olur.
+    Teklif ya da poliçe numarasıyla başlansaydı sıra quote_logs → users → sms_logs olurdu.
+  </p>
+
+  <div class="chain">
+    <div class="hop" style="--c:var(--llm);--soft:var(--llm-soft)">
+      <div class="k">Başlangıç</div>
+      <h4>Sorudaki kimlik</h4>
+      <p>LLM aracı çağırır:</p>
+      <p><code>userCode = BOB</code></p>
+      <span class="key">TraceNotificationDelivery</span>
+    </div>
+    <div class="hop" style="--c:var(--db);--soft:var(--db-soft)">
+      <div class="k">Halka 1 · users</div>
+      <h4>Kim bu, telefonu ne?</h4>
+      <p>BOB → müşteri <code>CUS-100103</code></p>
+      <p>kimlik no <code>*********57</code></p>
+      <p>telefon <code>+90******4187</code></p>
+      <span class="key">anahtar: userCode</span>
+    </div>
+    <div class="hop" style="--c:var(--db);--soft:var(--db-soft)">
+      <div class="k">Halka 2 · quote_logs</div>
+      <h4>En son poliçesi hangisi?</h4>
+      <p>Web kanalından teklif → <code>PolicyIssued</code></p>
+      <p>Poliçe zamanı → SMS aramasının başlangıcı</p>
+      <span class="key">anahtar: identityNo / customerNo</span>
+    </div>
+    <div class="hop" style="--c:var(--db);--soft:var(--db-soft)">
+      <div class="k">Halka 3 · sms_logs</div>
+      <h4>Mesaj gitti mi?</h4>
+      <p><code>POLICY_ISSUED</code>: Queued → <b>Failed</b> → <b>Failed</b></p>
+      <p>PROV_A: 503 Service Unavailable (2 deneme)</p>
+      <span class="key">anahtar: phone + poliçe zamanından sonrası</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="box">
+      <h4>Karar türleri</h4>
+      <ul>
+        <li><b>Delivered</b>: operatör teslim raporu geldi.</li>
+        <li><b>FailedToSend</b>: sağlayıcı reddetti (örnekteki durum).</li>
+        <li><b>NotDeliveredToHandset</b>: telefona ulaşmadı (bizim dışımızda).</li>
+        <li><b>NeverSent</b>: SMS hiç istenmedi; sebep quote_logs'ta (bildirim kuyruğa yazılamadı).</li>
+        <li><b>Pending</b>, <b>NoPolicy</b>, <b>Unknown</b> (zincir koptu: kimlik dizinde yok, telefon yok, kişi acente).</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h4>Zincir koparsa</h4>
+      <ul>
+        <li>Her halka kaydedilir: hangi tablo, hangi anahtar, ne bulundu.</li>
+        <li>Bir halkada kayıt yoksa zincir orada durur ve bu da bir bulgudur.</li>
+        <li>Örnek: “KARL'a SMS gitti mi?” → KARL acente, müşteri değil → <b>Unknown</b> + açıklama.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================== SONUÇ ===================== -->
+  <h2>Örneğin sonucu (canlı çalıştırma)</h2>
+  <div class="result">
+    <dl>
+      <dt>Model</dt><dd><code>ollama:qwen3:8b</code> · 102 sn</dd>
+      <dt>Araç çağrısı</dt><dd><code>TraceNotificationDelivery {"userCode":"BOB"}</code></dd>
+      <dt>Özet</dt><dd>BOB'un poliçe SMS'i (POLICY_ISSUED) gönderilemedi. SMS sağlayıcısı PROV_A mesajı iki kez 503 hatasıyla reddetti; müşteri SMS'i almadı.</dd>
+      <dt>Olası neden</dt><dd>SMS sağlayıcısı PROV_A, 503 Service Unavailable döndü.</dd>
+      <dt>Kanıt</dt><dd>SMS_PROVIDER_ERROR · SmsProviderAdapter · 2 log (sms_logs)</dd>
+      <dt>Güven</dt><dd>Orta (55/100), platform tarafından kanıttan hesaplandı</dd>
+      <dt>Öneriler</dt><dd>PROV_A'nın durumunu kontrol et · sağlayıcı düzelince SMS'i yeniden gönder · telefon numarasını doğrula</dd>
+    </dl>
+  </div>
+
+  <!-- ===================== GÜVENLİK ===================== -->
+  <h2>Akış boyunca devrede olan korumalar</h2>
+  <div class="grid">
+    <div class="box">
+      <h4>AI salt-okunur: 4 katman</h4>
+      <ol>
+        <li><b>Araç listesi:</b> yalnızca Get/Search/Find/Trace araçları var.</li>
+        <li><b>Kod:</b> araçlar yalnızca okuma arayüzlerini görür.</li>
+        <li><b>Veritabanı:</b> <code>logpilot_ai_reader</code> yalnızca <code>find</code> yapabilir; API açılırken bu doğrulanır.</li>
+        <li><b>Sohbet:</b> “sil / güncelle / sıfırla” talepleri LLM'e gitmeden reddedilir.</li>
+      </ol>
+    </div>
+    <div class="box">
+      <h4>KVKK</h4>
+      <ul>
+        <li>Soru kaydedilmeden ve modele gitmeden önce maskelenir.</li>
+        <li>Kimlik no ve telefonla eşleştirme backend'de yapılır; model bu değerleri hiç görmez.</li>
+        <li>Log metinlerinde plaka, IBAN, kart, e-posta ve telefon maskelenir.</li>
+        <li>Ollama yerel çalıştığı için veri makineden çıkmaz.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h4>Halüsinasyona karşı</h4>
+      <ul>
+        <li>Uydurma kimlikle araç çalıştırılmaz (7. adım).</li>
+        <li>Var olmayan kanıt id'leri ve desteklenmeyen nedenler silinir (12. adım).</li>
+        <li>Güveni model değil, kanıt belirler.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h4>Sınırlar</h4>
+      <ul>
+        <li>En fazla 5 LLM turu ve 8 araç çağrısı; araç başına 10 sn.</li>
+        <li>Araçlar seçili zaman aralığının dışına çıkamaz.</li>
+        <li>Geçmişten yalnızca son 10 mesaj taşınır; eski araç verisi taşınmaz.</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+<script>
+  // Tema düğmesi: sistem → koyu → açık. Tercih yalnızca bu tarayıcıda saklanır.
+  (function () {
+    var root = document.documentElement, btn = document.getElementById('theme');
+    var order = [null, 'dark', 'light'];
+    function apply(t) { if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme'); }
+    var saved = null;
+    try { saved = localStorage.getItem('logpilot-flow-theme'); } catch (e) {}
+    apply(saved);
+    btn.addEventListener('click', function () {
+      var cur = root.getAttribute('data-theme');
+      var next = order[(order.indexOf(cur) + 1) % order.length];
+      apply(next);
+      try { next ? localStorage.setItem('logpilot-flow-theme', next) : localStorage.removeItem('logpilot-flow-theme'); } catch (e) {}
+    });
+  })();
+</script>
+</body>
+</html>

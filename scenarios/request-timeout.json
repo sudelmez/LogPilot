@@ -1,0 +1,48 @@
+{
+  "id": "request-timeout",
+  "name": "Request timeout",
+  "description": "ProposalService responds slowly and the request exceeds its timeout threshold (REQUEST_TIMEOUT).",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "minCount": 1,
+    "maxCount": 2,
+    "spacingMs": 4000
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 420,
+    "probability": 0.4
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Information",
+      "operation": "GetProposalStatus",
+      "message": "Status request received for user {userCode}."
+    },
+    {
+      "offsetMs": 3000,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Warning",
+      "operation": "GetProposalStatus",
+      "message": "Request processing is slow.",
+      "durationMs": 3000
+    },
+    {
+      "offsetMs": 5000,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Error",
+      "operation": "GetProposalStatus",
+      "message": "Request exceeded the 5000 ms timeout threshold.",
+      "outcome": "Failure",
+      "errorCode": "REQUEST_TIMEOUT",
+      "exceptionType": "TimeoutException",
+      "durationMs": 5000
+    }
+  ]
+}

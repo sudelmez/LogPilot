@@ -1,0 +1,53 @@
+{
+  "id": "normal-login-success",
+  "name": "Normal: successful login",
+  "description": "Routine successful login.",
+  "kind": "Normal",
+  "users": {
+    "status": "Active",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "weight": 50
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "Login",
+      "message": "Login request received from {device} (app {appVersion}).",
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    },
+    {
+      "offsetMs": 60,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Information",
+      "operation": "Login",
+      "message": "Access token validated for user {userCode}.",
+      "durationMs": 90
+    },
+    {
+      "offsetMs": 180,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "Login",
+      "message": "User {userCode} logged in successfully.",
+      "outcome": "Success",
+      "durationMs": 180,
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    }
+  ]
+}

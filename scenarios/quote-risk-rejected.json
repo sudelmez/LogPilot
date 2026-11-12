@@ -1,0 +1,120 @@
+{
+  "id": "quote-risk-rejected",
+  "name": "Quote: declined by underwriting rules",
+  "description": "Risk scoring declines the request by design (high damage history). This is a business rule, not a technical fault: the mobile app shows 422 QUOTE_REQUEST_FAILED, the reason RISK_REJECTED is in `quote_logs`.",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 420,
+    "probability": 0.4
+  },
+  "quote": {
+    "channel": "Mobile",
+    "products": [
+      "Kasko"
+    ]
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Quote request received from {device} (app {appVersion}) for {product}.",
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    },
+    {
+      "offsetMs": 30,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Access token validated for user {userCode}.",
+      "durationMs": 40
+    },
+    {
+      "offsetMs": 60,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteRequested",
+      "message": "Quote {quoteId} requested via {channel} for {product} (customer {customerNo}).",
+      "metadata": {
+        "plate": "{plate}"
+      }
+    },
+    {
+      "offsetMs": 150,
+      "target": "Quote",
+      "service": "CustomerRegistryService",
+      "level": "Information",
+      "operation": "CustomerVerification",
+      "message": "Customer identity verified against the customer master (KPS check passed).",
+      "durationMs": 80
+    },
+    {
+      "offsetMs": 400,
+      "target": "Quote",
+      "service": "VehicleRegistryGateway",
+      "level": "Information",
+      "operation": "VehicleLookup",
+      "message": "Vehicle registry (SBM) returned vehicle and damage history for plate {plate}.",
+      "durationMs": 230,
+      "metadata": {
+        "provider": "SBM"
+      }
+    },
+    {
+      "offsetMs": 600,
+      "target": "Quote",
+      "service": "RiskScoringService",
+      "level": "Warning",
+      "operation": "RiskScoring",
+      "message": "Risk score 0.92 exceeds the auto-underwriting limit 0.85 (4 damage claims in 3 years).",
+      "errorCode": "RISK_REJECTED",
+      "outcome": "Failure",
+      "durationMs": 170,
+      "metadata": {
+        "riskScore": "0.92",
+        "limit": "0.85"
+      }
+    },
+    {
+      "offsetMs": 650,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Warning",
+      "operation": "QuoteFailed",
+      "message": "Quote {quoteId} declined by underwriting rules.",
+      "errorCode": "QUOTE_FAILED",
+      "outcome": "Failure",
+      "durationMs": 590
+    },
+    {
+      "offsetMs": 700,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Warning",
+      "operation": "RequestQuote",
+      "message": "Quote request declined for user {userCode}: QuoteEngine returned 422.",
+      "errorCode": "QUOTE_REQUEST_FAILED",
+      "outcome": "Failure",
+      "durationMs": 700,
+      "metadata": {
+        "statusCode": "422",
+        "quoteId": "{quoteId}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+# Üretime yakın kurulum: MongoDB kimlik doğrulaması AÇIK ve rol ayrımı veritabanında uygulanır.
+#   docker compose -f docker-compose.yml -f docker-compose.secure.yml up -d --build --wait
+# İlk kez geçerken veri klasörü boş olmalı (roller yalnızca ilk kurulumda oluşur): ./scripts/docker-down.sh --wipe
+# Parolaları .env dosyasına yaz (bkz. .env.example). Parola URL'de kullanıldığı için harf/rakam tercih et.
+#
+# Roller:
+#   root                 → sadece kurulum (uygulama KULLANMAZ)
+#   logpilot_app         → readWrite: generator ve API'nin kendi yazma işleri
+#   logpilot_ai_reader   → AI araçları: yalnızca 'find' (logs, quote_logs, sms_logs, users, incidents, knowledge_cases)
+#
+# API açılışta AI hesabının yetkilerini MongoDB'ye sorar; yazma yetkisi görürse AÇILMAZ (RequireReadOnlyAiAccess).
+
+x-secure-db: &secure-db
+  Mongo__ConnectionString: mongodb://${LOGPILOT_APP_USER:-logpilot_app}:${LOGPILOT_APP_PASSWORD:?set LOGPILOT_APP_PASSWORD in .env}@mongo:27017/${LOGPILOT_DB:-logpilot}?authSource=${LOGPILOT_DB:-logpilot}
+
+services:
+  mongo:
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${LOGPILOT_MONGO_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${LOGPILOT_MONGO_ROOT_PASSWORD:?set LOGPILOT_MONGO_ROOT_PASSWORD in .env}
+      LOGPILOT_DB: ${LOGPILOT_DB:-logpilot}
+      LOGPILOT_APP_USER: ${LOGPILOT_APP_USER:-logpilot_app}
+      LOGPILOT_APP_PASSWORD: ${LOGPILOT_APP_PASSWORD:?set LOGPILOT_APP_PASSWORD in .env}
+      LOGPILOT_AI_READER_USER: ${LOGPILOT_AI_READER_USER:-logpilot_ai_reader}
+      LOGPILOT_AI_READER_PASSWORD: ${LOGPILOT_AI_READER_PASSWORD:?set LOGPILOT_AI_READER_PASSWORD in .env}
+    volumes:
+      - ./docker/mongo-init:/docker-entrypoint-initdb.d:ro
+
+  api:
+    environment:
+      <<: *secure-db
+      Mongo__ReadOnlyConnectionString: mongodb://${LOGPILOT_AI_READER_USER:-logpilot_ai_reader}:${LOGPILOT_AI_READER_PASSWORD:?set LOGPILOT_AI_READER_PASSWORD in .env}@mongo:27017/${LOGPILOT_DB:-logpilot}?authSource=${LOGPILOT_DB:-logpilot}
+      Mongo__RequireReadOnlyAiAccess: "true"
+
+  generator:
+    environment:
+      <<: *secure-db

@@ -1,0 +1,144 @@
+{
+  "id": "normal-quote-mobile",
+  "name": "Normal: mobile insurance quote issued",
+  "description": "A customer requests a Kasko/Trafik quote in the mobile app. MobileGateway logs go to `logs`, the QuoteEngine steps go to `quote_logs` with the same correlationId.",
+  "kind": "Normal",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "weight": 15
+  },
+  "quote": {
+    "channel": "Mobile",
+    "products": [
+      "Kasko",
+      "Trafik"
+    ]
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Quote request received from {device} (app {appVersion}) for {product}.",
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    },
+    {
+      "offsetMs": 30,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Access token validated for user {userCode}.",
+      "durationMs": 40
+    },
+    {
+      "offsetMs": 60,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteRequested",
+      "message": "Quote {quoteId} requested via {channel} for {product} (customer {customerNo}).",
+      "metadata": {
+        "plate": "{plate}"
+      }
+    },
+    {
+      "offsetMs": 150,
+      "target": "Quote",
+      "service": "CustomerRegistryService",
+      "level": "Information",
+      "operation": "CustomerVerification",
+      "message": "Customer identity verified against the customer master (KPS check passed).",
+      "durationMs": 80
+    },
+    {
+      "offsetMs": 400,
+      "target": "Quote",
+      "service": "VehicleRegistryGateway",
+      "level": "Information",
+      "operation": "VehicleLookup",
+      "message": "Vehicle registry (SBM) returned vehicle and damage history for plate {plate}.",
+      "durationMs": 230,
+      "metadata": {
+        "provider": "SBM"
+      }
+    },
+    {
+      "offsetMs": 600,
+      "target": "Quote",
+      "service": "RiskScoringService",
+      "level": "Information",
+      "operation": "RiskScoring",
+      "message": "Risk score calculated: 0.34 (auto-underwriting limit 0.85).",
+      "durationMs": 150
+    },
+    {
+      "offsetMs": 1500,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_AKS returned a premium offer.",
+      "insurerCode": "INS_AKS",
+      "premiumAmount": 14500,
+      "durationMs": 800
+    },
+    {
+      "offsetMs": 1700,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_NRD returned a premium offer.",
+      "insurerCode": "INS_NRD",
+      "premiumAmount": 15200,
+      "durationMs": 1000
+    },
+    {
+      "offsetMs": 1900,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_GNS returned a premium offer.",
+      "insurerCode": "INS_GNS",
+      "premiumAmount": 13900,
+      "durationMs": 1100
+    },
+    {
+      "offsetMs": 2000,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteIssued",
+      "message": "Quote {quoteId} issued with 3 offers.",
+      "outcome": "Success",
+      "durationMs": 1940
+    },
+    {
+      "offsetMs": 2050,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "RequestQuote",
+      "message": "Quote {quoteId} displayed to user {userCode}.",
+      "outcome": "Success",
+      "durationMs": 2050,
+      "metadata": {
+        "quoteId": "{quoteId}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-LogPilot.LogGenerator-c3562d37-f3ab-4f70-a82d-339eee56b159</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LogPilot.Application\LogPilot.Application.csproj" />
+    <ProjectReference Include="..\LogPilot.Infrastructure\LogPilot.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

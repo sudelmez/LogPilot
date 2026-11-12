@@ -1,0 +1,80 @@
+{
+  "id": "mongo-outage",
+  "name": "MongoDB outage",
+  "description": "Simulated MongoDB outage: several services log MONGO_CONNECTION_FAILED and multiple users are affected. Only logs are produced; the real database is untouched.",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "minCount": 4,
+    "maxCount": 8,
+    "spacingMs": 2500
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 900,
+    "probability": 0.2
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "Login",
+      "message": "Login request received from {device} (app {appVersion}).",
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    },
+    {
+      "offsetMs": 5080,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Error",
+      "operation": "Login",
+      "message": "Unable to reach MongoDB: server selection timed out.",
+      "errorCode": "MONGO_CONNECTION_FAILED",
+      "exceptionType": "MongoConnectionException",
+      "durationMs": 5000
+    },
+    {
+      "offsetMs": 5100,
+      "application": "MobileApp",
+      "service": "UserService",
+      "level": "Error",
+      "operation": "Login",
+      "message": "User lookup failed: MongoDB connection unavailable.",
+      "errorCode": "MONGO_CONNECTION_FAILED",
+      "exceptionType": "MongoConnectionException",
+      "durationMs": 5000
+    },
+    {
+      "offsetMs": 5200,
+      "application": "ProposalApp",
+      "service": "ProposalService",
+      "level": "Error",
+      "operation": "LoadProposals",
+      "message": "Proposal store unreachable: MongoDB connection unavailable.",
+      "errorCode": "MONGO_CONNECTION_FAILED",
+      "exceptionType": "MongoConnectionException",
+      "durationMs": 5000,
+      "probability": 0.5
+    },
+    {
+      "offsetMs": 5250,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Error",
+      "operation": "Login",
+      "message": "Login failed for user {userCode}: backend data store unavailable.",
+      "outcome": "Failure",
+      "errorCode": "LOGIN_FAILED",
+      "durationMs": 5250,
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    }
+  ]
+}

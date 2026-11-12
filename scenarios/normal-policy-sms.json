@@ -1,0 +1,148 @@
+{
+  "id": "normal-policy-sms",
+  "name": "Normal: policy issued and SMS delivered",
+  "description": "An agent quote turns into a policy; NotificationGateway sends the POLICY_ISSUED SMS and the operator confirms delivery. The SMS system only knows the phone number: quote_logs → users (identityNo → phone) → sms_logs.",
+  "kind": "Normal",
+  "users": {
+    "status": "Active",
+    "role": "Agent",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "weight": 5
+  },
+  "quote": {
+    "channel": "Agent",
+    "products": [
+      "Kasko",
+      "Trafik"
+    ]
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteRequested",
+      "message": "Quote {quoteId} requested via {channel} for {product}.",
+      "metadata": {
+        "plate": "{plate}"
+      }
+    },
+    {
+      "offsetMs": 90,
+      "target": "Quote",
+      "service": "CustomerRegistryService",
+      "level": "Information",
+      "operation": "CustomerVerification",
+      "message": "Customer identity verified against the customer master (KPS check passed).",
+      "durationMs": 80
+    },
+    {
+      "offsetMs": 340,
+      "target": "Quote",
+      "service": "VehicleRegistryGateway",
+      "level": "Information",
+      "operation": "VehicleLookup",
+      "message": "Vehicle registry (SBM) returned vehicle and damage history for plate {plate}.",
+      "durationMs": 230,
+      "metadata": {
+        "provider": "SBM"
+      }
+    },
+    {
+      "offsetMs": 540,
+      "target": "Quote",
+      "service": "RiskScoringService",
+      "level": "Information",
+      "operation": "RiskScoring",
+      "message": "Risk score calculated: 0.29 (auto-underwriting limit 0.85).",
+      "durationMs": 150
+    },
+    {
+      "offsetMs": 1450,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_AKS returned a premium offer.",
+      "insurerCode": "INS_AKS",
+      "premiumAmount": 14800,
+      "durationMs": 850
+    },
+    {
+      "offsetMs": 1650,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_GNS returned a premium offer.",
+      "insurerCode": "INS_GNS",
+      "premiumAmount": 14100,
+      "durationMs": 1000
+    },
+    {
+      "offsetMs": 1750,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteIssued",
+      "message": "Quote {quoteId} issued with 2 offers.",
+      "outcome": "Success",
+      "durationMs": 1750
+    },
+    {
+      "offsetMs": 60000,
+      "target": "Quote",
+      "service": "PolicyService",
+      "level": "Information",
+      "operation": "PolicyIssued",
+      "message": "Policy {policyNo} issued from quote {quoteId} (offer INS_GNS).",
+      "outcome": "Success",
+      "durationMs": 900,
+      "metadata": {
+        "insurer": "INS_GNS"
+      }
+    },
+    {
+      "offsetMs": 60400,
+      "target": "Sms",
+      "service": "NotificationGateway",
+      "level": "Information",
+      "operation": "POLICY_ISSUED",
+      "smsStatus": "Queued",
+      "message": "POLICY_ISSUED message {messageId} queued for the policyholder.",
+      "metadata": {
+        "policyEvent": "PolicyIssued"
+      }
+    },
+    {
+      "offsetMs": 61200,
+      "target": "Sms",
+      "service": "SmsProviderAdapter",
+      "level": "Information",
+      "operation": "POLICY_ISSUED",
+      "smsStatus": "SentToProvider",
+      "message": "Message {messageId} accepted by provider PROV_A.",
+      "provider": "PROV_A",
+      "durationMs": 350
+    },
+    {
+      "offsetMs": 68000,
+      "target": "Sms",
+      "service": "SmsProviderAdapter",
+      "level": "Information",
+      "operation": "POLICY_ISSUED",
+      "smsStatus": "Delivered",
+      "message": "Delivery report: message {messageId} delivered to handset.",
+      "provider": "PROV_A",
+      "metadata": {
+        "dlr": "DELIVRD"
+      }
+    }
+  ]
+}

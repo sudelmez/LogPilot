@@ -1,0 +1,158 @@
+[
+  {
+    "userCode": "TCLI",
+    "userId": "USR-1001",
+    "status": "Active",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100101",
+    "identityNo": "99001007919",
+    "phone": "+905551014729"
+  },
+  {
+    "userCode": "ALEX",
+    "userId": "USR-1002",
+    "status": "Active",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100102",
+    "identityNo": "99002015838",
+    "phone": "+905551029458"
+  },
+  {
+    "userCode": "BOB",
+    "userId": "USR-1003",
+    "status": "Active",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100103",
+    "identityNo": "99003023757",
+    "phone": "+905551034187"
+  },
+  {
+    "userCode": "MARA",
+    "userId": "USR-1004",
+    "status": "Active",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100104",
+    "identityNo": "99004031676",
+    "phone": "+905551048916"
+  },
+  {
+    "userCode": "DEVR",
+    "userId": "USR-1005",
+    "status": "Active",
+    "roles": [
+      "Agent"
+    ]
+  },
+  {
+    "userCode": "ELIF",
+    "userId": "USR-1006",
+    "status": "Active",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100105",
+    "identityNo": "99005039595",
+    "phone": "+905551053645"
+  },
+  {
+    "userCode": "JOHN",
+    "userId": "USR-1007",
+    "status": "Active",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100106",
+    "identityNo": "99006047514",
+    "phone": "+905551068374"
+  },
+  {
+    "userCode": "KARL",
+    "userId": "USR-1008",
+    "status": "Active",
+    "roles": [
+      "Agent"
+    ]
+  },
+  {
+    "userCode": "LENA",
+    "userId": "USR-1009",
+    "status": "Active",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100107",
+    "identityNo": "99007055433",
+    "phone": "+905551073103"
+  },
+  {
+    "userCode": "NINA",
+    "userId": "USR-1010",
+    "status": "Active",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100108",
+    "identityNo": "99008063352",
+    "phone": "+905551087832"
+  },
+  {
+    "userCode": "OMER",
+    "userId": "USR-1011",
+    "status": "Active",
+    "roles": [
+      "Admin"
+    ]
+  },
+  {
+    "userCode": "PAUL",
+    "userId": "USR-1012",
+    "status": "Active",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100109",
+    "identityNo": "99009071271",
+    "phone": "+905551092561"
+  },
+  {
+    "userCode": "OLDU",
+    "userId": "USR-1101",
+    "status": "Inactive",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100110",
+    "identityNo": "99010079190",
+    "phone": "+905551107290"
+  },
+  {
+    "userCode": "TEMP",
+    "userId": "USR-1102",
+    "status": "Inactive",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100111",
+    "identityNo": "99011087109",
+    "phone": "+905551112019"
+  },
+  {
+    "userCode": "RETI",
+    "userId": "USR-1103",
+    "status": "Inactive",
+    "roles": [
+      "Customer"
+    ],
+    "customerNo": "CUS-100112",
+    "identityNo": "99012095028",
+    "phone": "+905551126748"
+  }
+]

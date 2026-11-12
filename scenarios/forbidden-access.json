@@ -1,0 +1,39 @@
+{
+  "id": "forbidden-access",
+  "name": "Forbidden access",
+  "description": "A user attempts to access a resource they are not authorized for (FORBIDDEN_ACCESS).",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 200,
+    "probability": 0.5
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "AccessResource",
+      "message": "User {userCode} requested resource '/admin/reports'."
+    },
+    {
+      "offsetMs": 40,
+      "application": "MobileApp",
+      "service": "AuthorizationService",
+      "level": "Warning",
+      "operation": "AccessResource",
+      "message": "User {userCode} is not allowed to access '/admin/reports'.",
+      "outcome": "Failure",
+      "errorCode": "FORBIDDEN_ACCESS",
+      "exceptionType": "UnauthorizedAccessException",
+      "durationMs": 30
+    }
+  ]
+}

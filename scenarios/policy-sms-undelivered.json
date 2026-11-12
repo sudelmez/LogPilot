@@ -1,0 +1,150 @@
+{
+  "id": "policy-sms-undelivered",
+  "name": "Policy SMS: sent but not delivered to handset",
+  "description": "The POLICY_ISSUED SMS is accepted by the provider, but the operator's delivery report says UNDELIV (handset unreachable). Our systems worked; the problem is outside (phone off / wrong number).",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "role": "Agent",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 420,
+    "probability": 0.4
+  },
+  "quote": {
+    "channel": "Agent",
+    "products": [
+      "Kasko"
+    ]
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteRequested",
+      "message": "Quote {quoteId} requested via {channel} for {product}.",
+      "metadata": {
+        "plate": "{plate}"
+      }
+    },
+    {
+      "offsetMs": 90,
+      "target": "Quote",
+      "service": "CustomerRegistryService",
+      "level": "Information",
+      "operation": "CustomerVerification",
+      "message": "Customer identity verified against the customer master (KPS check passed).",
+      "durationMs": 80
+    },
+    {
+      "offsetMs": 340,
+      "target": "Quote",
+      "service": "VehicleRegistryGateway",
+      "level": "Information",
+      "operation": "VehicleLookup",
+      "message": "Vehicle registry (SBM) returned vehicle and damage history for plate {plate}.",
+      "durationMs": 230,
+      "metadata": {
+        "provider": "SBM"
+      }
+    },
+    {
+      "offsetMs": 540,
+      "target": "Quote",
+      "service": "RiskScoringService",
+      "level": "Information",
+      "operation": "RiskScoring",
+      "message": "Risk score calculated: 0.29 (auto-underwriting limit 0.85).",
+      "durationMs": 150
+    },
+    {
+      "offsetMs": 1450,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_AKS returned a premium offer.",
+      "insurerCode": "INS_AKS",
+      "premiumAmount": 14800,
+      "durationMs": 850
+    },
+    {
+      "offsetMs": 1650,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_GNS returned a premium offer.",
+      "insurerCode": "INS_GNS",
+      "premiumAmount": 14100,
+      "durationMs": 1000
+    },
+    {
+      "offsetMs": 1750,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteIssued",
+      "message": "Quote {quoteId} issued with 2 offers.",
+      "outcome": "Success",
+      "durationMs": 1750
+    },
+    {
+      "offsetMs": 60000,
+      "target": "Quote",
+      "service": "PolicyService",
+      "level": "Information",
+      "operation": "PolicyIssued",
+      "message": "Policy {policyNo} issued from quote {quoteId} (offer INS_GNS).",
+      "outcome": "Success",
+      "durationMs": 900,
+      "metadata": {
+        "insurer": "INS_GNS"
+      }
+    },
+    {
+      "offsetMs": 60400,
+      "target": "Sms",
+      "service": "NotificationGateway",
+      "level": "Information",
+      "operation": "POLICY_ISSUED",
+      "smsStatus": "Queued",
+      "message": "POLICY_ISSUED message {messageId} queued for the policyholder.",
+      "metadata": {
+        "policyEvent": "PolicyIssued"
+      }
+    },
+    {
+      "offsetMs": 61200,
+      "target": "Sms",
+      "service": "SmsProviderAdapter",
+      "level": "Information",
+      "operation": "POLICY_ISSUED",
+      "smsStatus": "SentToProvider",
+      "message": "Message {messageId} accepted by provider PROV_B.",
+      "provider": "PROV_B",
+      "durationMs": 350
+    },
+    {
+      "offsetMs": 120000,
+      "target": "Sms",
+      "service": "SmsProviderAdapter",
+      "level": "Warning",
+      "operation": "POLICY_ISSUED",
+      "smsStatus": "Undelivered",
+      "message": "Delivery report: message {messageId} not delivered (DLR UNDELIV, operator code 27: handset unreachable).",
+      "provider": "PROV_B",
+      "errorCode": "SMS_UNDELIVERED",
+      "metadata": {
+        "dlr": "UNDELIV",
+        "operatorCode": "27"
+      }
+    }
+  ]
+}

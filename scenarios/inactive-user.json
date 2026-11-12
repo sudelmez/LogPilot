@@ -1,0 +1,66 @@
+{
+  "id": "inactive-user",
+  "name": "Inactive user",
+  "description": "The user record exists but the account is inactive, so login is rejected with USER_INACTIVE.",
+  "kind": "Incident",
+  "users": {
+    "status": "Inactive",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 180,
+    "probability": 0.5
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Information",
+      "operation": "Login",
+      "message": "Login request received from {device} (app {appVersion}).",
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    },
+    {
+      "offsetMs": 50,
+      "application": "MobileApp",
+      "service": "UserService",
+      "level": "Information",
+      "operation": "Login",
+      "message": "User record found for {userCode}.",
+      "durationMs": 40
+    },
+    {
+      "offsetMs": 110,
+      "application": "MobileApp",
+      "service": "AuthenticationService",
+      "level": "Error",
+      "operation": "Login",
+      "message": "Login rejected: account of user {userCode} is inactive.",
+      "errorCode": "USER_INACTIVE",
+      "exceptionType": "InactiveUserException",
+      "durationMs": 70
+    },
+    {
+      "offsetMs": 150,
+      "application": "MobileApp",
+      "service": "MobileGateway",
+      "level": "Error",
+      "operation": "Login",
+      "message": "Login failed for user {userCode}: account is inactive.",
+      "outcome": "Failure",
+      "errorCode": "LOGIN_FAILED",
+      "durationMs": 150,
+      "metadata": {
+        "device": "{device}",
+        "appVersion": "{appVersion}"
+      }
+    }
+  ]
+}

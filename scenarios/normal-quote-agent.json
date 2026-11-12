@@ -1,0 +1,110 @@
+{
+  "id": "normal-quote-agent",
+  "name": "Normal: agent insurance quote issued",
+  "description": "An agent (DEVR/KARL) requests a quote on behalf of a customer. Only `quote_logs` is written; userCode is the AGENT, the customer is identified by customerNo/identityNo.",
+  "kind": "Normal",
+  "users": {
+    "status": "Active",
+    "role": "Agent",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "weight": 4
+  },
+  "quote": {
+    "channel": "Agent",
+    "products": [
+      "Kasko",
+      "Trafik"
+    ]
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteRequested",
+      "message": "Quote {quoteId} requested via {channel} for {product} (customer {customerNo}).",
+      "metadata": {
+        "plate": "{plate}"
+      }
+    },
+    {
+      "offsetMs": 90,
+      "target": "Quote",
+      "service": "CustomerRegistryService",
+      "level": "Information",
+      "operation": "CustomerVerification",
+      "message": "Customer identity verified against the customer master (KPS check passed).",
+      "durationMs": 80
+    },
+    {
+      "offsetMs": 340,
+      "target": "Quote",
+      "service": "VehicleRegistryGateway",
+      "level": "Information",
+      "operation": "VehicleLookup",
+      "message": "Vehicle registry (SBM) returned vehicle and damage history for plate {plate}.",
+      "durationMs": 230,
+      "metadata": {
+        "provider": "SBM"
+      }
+    },
+    {
+      "offsetMs": 540,
+      "target": "Quote",
+      "service": "RiskScoringService",
+      "level": "Information",
+      "operation": "RiskScoring",
+      "message": "Risk score calculated: 0.34 (auto-underwriting limit 0.85).",
+      "durationMs": 150
+    },
+    {
+      "offsetMs": 1450,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_AKS returned a premium offer.",
+      "insurerCode": "INS_AKS",
+      "premiumAmount": 14800,
+      "durationMs": 850
+    },
+    {
+      "offsetMs": 1650,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_NRD returned a premium offer.",
+      "insurerCode": "INS_NRD",
+      "premiumAmount": 15600,
+      "durationMs": 1050
+    },
+    {
+      "offsetMs": 1850,
+      "target": "Quote",
+      "service": "InsurerGateway",
+      "level": "Information",
+      "operation": "InsurerPricing",
+      "message": "Insurer INS_GNS returned a premium offer.",
+      "insurerCode": "INS_GNS",
+      "premiumAmount": 14100,
+      "durationMs": 1100
+    },
+    {
+      "offsetMs": 1950,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteIssued",
+      "message": "Quote {quoteId} issued with 3 offers.",
+      "outcome": "Success",
+      "durationMs": 1890
+    }
+  ]
+}

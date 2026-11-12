@@ -1,0 +1,42 @@
+{
+  "id": "normal-sms-sent",
+  "name": "Normal: SMS sent",
+  "description": "Routine successful SMS delivery.",
+  "kind": "Normal",
+  "users": {
+    "status": "Active",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "weight": 15
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "NotificationApp",
+      "service": "NotificationService",
+      "level": "Information",
+      "operation": "SendSms",
+      "message": "Sending SMS to user {userCode}.",
+      "metadata": {
+        "provider": "SmsGateway"
+      }
+    },
+    {
+      "offsetMs": 220,
+      "application": "NotificationApp",
+      "service": "NotificationService",
+      "level": "Information",
+      "operation": "SendSms",
+      "message": "SMS sent to user {userCode}.",
+      "outcome": "Success",
+      "durationMs": 210,
+      "metadata": {
+        "provider": "SmsGateway"
+      }
+    }
+  ]
+}

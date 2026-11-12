@@ -1,0 +1,64 @@
+{
+  "id": "quote-identity-mismatch",
+  "name": "Quote: customer identity mismatch (agent)",
+  "description": "An agent requests a quote for a customer, but the identity data does not match the customer master record (KPS). Only `quote_logs` is written and its userCode is the agent: finding the customer requires matching customerNo/identityNo with the user directory.",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "role": "Agent",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 360,
+    "probability": 0.5
+  },
+  "quote": {
+    "channel": "Agent",
+    "products": [
+      "Kasko",
+      "Trafik"
+    ]
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Information",
+      "operation": "QuoteRequested",
+      "message": "Quote {quoteId} requested via {channel} for {product} (customer {customerNo}).",
+      "metadata": {
+        "plate": "{plate}"
+      }
+    },
+    {
+      "offsetMs": 300,
+      "target": "Quote",
+      "service": "CustomerRegistryService",
+      "level": "Warning",
+      "operation": "CustomerVerification",
+      "message": "Identity data does not match the customer master record of {customerNo} (KPS: birth date mismatch).",
+      "errorCode": "CUSTOMER_IDENTITY_MISMATCH",
+      "outcome": "Failure",
+      "durationMs": 210,
+      "metadata": {
+        "check": "KPS"
+      }
+    },
+    {
+      "offsetMs": 350,
+      "target": "Quote",
+      "service": "QuoteOrchestrator",
+      "level": "Error",
+      "operation": "QuoteFailed",
+      "message": "Quote {quoteId} failed at step CustomerVerification.",
+      "errorCode": "QUOTE_FAILED",
+      "outcome": "Failure",
+      "exceptionType": "QuoteFailedException",
+      "durationMs": 350
+    }
+  ]
+}

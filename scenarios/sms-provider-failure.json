@@ -1,0 +1,46 @@
+{
+  "id": "sms-provider-failure",
+  "name": "SMS provider failure",
+  "description": "NotificationService tries to send an SMS and the external provider returns an error (SMS_PROVIDER_ERROR).",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "minCount": 1,
+    "maxCount": 4,
+    "spacingMs": 2000
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 300,
+    "probability": 0.5
+  },
+  "steps": [
+    {
+      "offsetMs": 0,
+      "application": "NotificationApp",
+      "service": "NotificationService",
+      "level": "Information",
+      "operation": "SendSms",
+      "message": "Sending SMS to user {userCode}.",
+      "metadata": {
+        "provider": "SmsGateway"
+      }
+    },
+    {
+      "offsetMs": 1800,
+      "application": "NotificationApp",
+      "service": "NotificationService",
+      "level": "Error",
+      "operation": "SendSms",
+      "message": "SMS provider returned HTTP 502 for user {userCode}.",
+      "outcome": "Failure",
+      "errorCode": "SMS_PROVIDER_ERROR",
+      "exceptionType": "SmsProviderException",
+      "durationMs": 1800,
+      "metadata": {
+        "provider": "SmsGateway",
+        "statusCode": "502"
+      }
+    }
+  ]
+}
