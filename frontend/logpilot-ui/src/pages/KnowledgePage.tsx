@@ -12,6 +12,7 @@ import { useDeleteKnowledgeCase, useKnowledge, useKnowledgeCase, useSaveKnowledg
 import type { KnowledgeCase, KnowledgeCaseInput, KnowledgeSource } from '../api/knowledgeTypes';
 import EmptyState from '../components/EmptyState';
 import PageHeader from '../components/PageHeader';
+import { Code } from '../components/ui';
 import { formatDateTime, relativeTime } from '../lib/format';
 
 const SOURCE_LABEL: Record<KnowledgeSource, string> = {
@@ -116,8 +117,8 @@ function CaseCard({ item, highlighted, onEdit, onDelete }: {
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{item.title}</Typography>
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mt: 0.5 }}>
-              {item.errorCodes.map((c) => <Chip key={c} size="small" color="error" variant="outlined" label={c} />)}
-              {item.services.map((s) => <Chip key={s} size="small" label={s} />)}
+              {item.errorCodes.map((c) => <Code key={c} tone="error">{c}</Code>)}
+              {item.services.map((s) => <Code key={s}>{s}</Code>)}
             </Stack>
           </Box>
           <Stack direction="row">

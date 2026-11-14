@@ -1,0 +1,27 @@
+{
+  "id": "purchase-payment-declined",
+  "name": "Purchase: card payment declined",
+  "description": "The bank declines the card (code 51, insufficient funds). The website only shows 'Ödeme işlemi tamamlanamadı'; the reason is in payment_transactions, in the provider row that has NO policyNo (matched by clientReferenceCode).",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 2,
+    "spacingMs": 15000
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 300,
+    "probability": 0.5
+  },
+  "purchase": {
+    "outcome": "PaymentDeclined",
+    "products": [
+      "Kasko",
+      "Trafik"
+    ],
+    "provider": "VPOS_A"
+  },
+  "steps": []
+}

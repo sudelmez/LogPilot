@@ -3,6 +3,7 @@ using LogPilot.Domain.Incidents;
 using LogPilot.Domain.Knowledge;
 using LogPilot.Domain.Logs;
 using LogPilot.Domain.Notifications;
+using LogPilot.Domain.Purchases;
 using LogPilot.Domain.Quotes;
 using LogPilot.Domain.Users;
 using LogPilot.Domain.Scenarios;
@@ -26,6 +27,9 @@ internal sealed class MongoIndexInitializer(MongoContext context, IOptions<Mongo
         await EnsureTtlAsync(context.Executions, "ix_requestedat_ttl", retention, ct);
         await EnsureTtlAsync(context.QuoteLogs, "ix_timestamp_ttl", retention, ct);
         await EnsureTtlAsync(context.SmsLogs, "ix_timestamp_ttl", retention, ct);
+        await EnsureTtlAsync(context.ProposalSteps, "ix_timestamp_ttl", retention, ct);
+        await EnsureTtlAsync(context.WinsureTransactions, "ix_timestamp_ttl", retention, ct);
+        await EnsureTtlAsync(context.PaymentTransactions, "ix_timestamp_ttl", retention, ct);
 
         var logKeys = Builders<LogEntry>.IndexKeys;
         await context.Logs.Indexes.CreateManyAsync(
@@ -103,6 +107,44 @@ internal sealed class MongoIndexInitializer(MongoContext context, IOptions<Mongo
                 new CreateIndexOptions { Name = "ix_messageid" }),
             new CreateIndexModel<SmsLogEntry>(smsKeys.Ascending(x => x.TemplateCode).Ascending(x => x.Status).Descending(x => x.Timestamp),
                 new CreateIndexOptions { Name = "ix_template_status_timestamp" })
+        ], ct);
+
+        // Satın alma: her tablonun kendi anahtarı indekslenir (kimlik no, teklif no, poliçe no, clientReferenceCode).
+        var stepKeys = Builders<ProposalStepLog>.IndexKeys;
+        await context.ProposalSteps.Indexes.CreateManyAsync(
+        [
+            new CreateIndexModel<ProposalStepLog>(stepKeys.Ascending(x => x.Timestamp),
+                new CreateIndexOptions { Name = "ix_timestamp_ttl", ExpireAfter = retention }),
+            new CreateIndexModel<ProposalStepLog>(stepKeys.Ascending(x => x.UserIdentityNo).Descending(x => x.Timestamp),
+                new CreateIndexOptions { Name = "ix_identity_timestamp" }),
+            new CreateIndexModel<ProposalStepLog>(stepKeys.Ascending(x => x.ProposalNo).Ascending(x => x.Timestamp),
+                new CreateIndexOptions { Name = "ix_proposal_timestamp" })
+        ], ct);
+
+        var winsureKeys = Builders<WinsureTransaction>.IndexKeys;
+        await context.WinsureTransactions.Indexes.CreateManyAsync(
+        [
+            new CreateIndexModel<WinsureTransaction>(winsureKeys.Ascending(x => x.Timestamp),
+                new CreateIndexOptions { Name = "ix_timestamp_ttl", ExpireAfter = retention }),
+            new CreateIndexModel<WinsureTransaction>(winsureKeys.Ascending(x => x.PolicyNo).Ascending(x => x.Timestamp),
+                new CreateIndexOptions { Name = "ix_policy_timestamp" }),
+            new CreateIndexModel<WinsureTransaction>(winsureKeys.Ascending(x => x.Status).Descending(x => x.Timestamp),
+                new CreateIndexOptions { Name = "ix_status_timestamp" })
+        ], ct);
+
+        var paymentKeys = Builders<PaymentTransaction>.IndexKeys;
+        await context.PaymentTransactions.Indexes.CreateManyAsync(
+        [
+            new CreateIndexModel<PaymentTransaction>(paymentKeys.Ascending(x => x.Timestamp),
+                new CreateIndexOptions { Name = "ix_timestamp_ttl", ExpireAfter = retention }),
+            new CreateIndexModel<PaymentTransaction>(paymentKeys.Ascending(x => x.PolicyNo),
+                new CreateIndexOptions<PaymentTransaction>
+                {
+                    Name = "ix_policyno",
+                    PartialFilterExpression = new BsonDocumentFilterDefinition<PaymentTransaction>(new BsonDocument("policyNo", new BsonDocument("$exists", true)))
+                }),
+            new CreateIndexModel<PaymentTransaction>(paymentKeys.Ascending(x => x.ClientReferenceCode).Ascending(x => x.Timestamp),
+                new CreateIndexOptions { Name = "ix_clientref_timestamp" })
         ], ct);
 
         var userKeys = Builders<User>.IndexKeys;

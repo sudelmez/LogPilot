@@ -1,0 +1,25 @@
+{
+  "id": "normal-corporate-purchase-cancelled",
+  "name": "Normal: purchased policy cancelled later",
+  "description": "The policy is bought successfully and later cancelled at the customer's request: Winsure Cancel + payment refund (refund row has no policyNo).",
+  "kind": "Normal",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "weight": 2
+  },
+  "purchase": {
+    "outcome": "CancelledAfterPurchase",
+    "products": [
+      "Kasko"
+    ],
+    "provider": "VPOS_A"
+  },
+  "steps": []
+}

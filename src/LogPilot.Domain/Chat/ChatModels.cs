@@ -59,6 +59,18 @@ public sealed class ToolExecution
     public bool Truncated { get; init; }
     public int FlaggedContent { get; init; }                      // enjeksiyon şüphesiyle temizlenen metin sayısı
     public string? Error { get; init; }
+
+    /// Zincirleme araçlarda (ör. SMS teslimi, poliçe satın alma) gezilen tablolar, sırasıyla. Arayüz bunu hat çizgisi olarak çizer.
+    public List<InvestigationHop> Path { get; init; } = [];
+}
+
+/// Zincirin bir halkası: hangi tabloya, hangi anahtarla bakıldı, bir şey bulundu mu.
+public sealed class InvestigationHop
+{
+    public required string Source { get; init; }
+    public required string LookedUpBy { get; init; }
+    public bool Found { get; init; }
+    public string? Result { get; init; }
 }
 
 /// Yapılandırılmış asistan cevabı. Kanıt ve güven BACKEND tarafından doğrulanıp hesaplanır.

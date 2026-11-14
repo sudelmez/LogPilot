@@ -93,7 +93,9 @@ public class ToolRegistryTests
             [ToolNames.SearchLogs, ToolNames.GetUserRecentErrors, ToolNames.GetServiceHealth, ToolNames.GetErrorStatistics,
              ToolNames.FindRelatedLogs, ToolNames.GetActiveIncidents, ToolNames.GetIncidentDetails, ToolNames.SearchKnowledgeBase,
              ToolNames.TraceCustomerJourney, ToolNames.SearchQuoteLogs, ToolNames.GetQuoteFunnel, ToolNames.GetCustomerProfile,
-             ToolNames.TraceNotificationDelivery, ToolNames.SearchSmsLogs]);
+             ToolNames.TraceNotificationDelivery, ToolNames.SearchSmsLogs,
+             ToolNames.TracePolicyPurchase, ToolNames.SearchProposalSteps, ToolNames.SearchWinsureTransactions,
+             ToolNames.SearchPaymentTransactions, ToolNames.GetPurchaseStats]);
 
         foreach (var definition in _sut.Definitions)
         {

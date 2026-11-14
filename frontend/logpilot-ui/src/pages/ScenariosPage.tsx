@@ -9,6 +9,7 @@ import TuneIcon from '@mui/icons-material/Tune';
 import { useExecutions, useScenarios, useTriggerScenario, useUpdateScenarioSettings } from '../api/hooks';
 import type { ScenarioSettings, ScenarioSummary } from '../api/types';
 import { ExecutionChip } from '../components/Chips';
+import { Code, StatusDot } from '../components/ui';
 import PageHeader from '../components/PageHeader';
 import QueryState from '../components/QueryState';
 import { formatDateTime, formatDuration, formatNumber } from '../lib/format';
@@ -28,14 +29,14 @@ function ScenarioCard({ scenario, onTrigger, onEdit, busy }: {
     <Card sx={{ display: 'flex', flexDirection: 'column' }}>
       <CardContent sx={{ flexGrow: 1 }}>
         <Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{scenario.name}</Typography>
-          <Chip size="small" label={scenario.settings.enabled ? 'Enabled' : 'Disabled'}
-            color={scenario.settings.enabled ? 'success' : 'default'} variant="outlined" />
+          <Typography variant="subtitle1" component="h2">{scenario.name}</Typography>
+          <StatusDot tone={scenario.settings.enabled ? 'success' : 'neutral'} label={scenario.settings.enabled ? 'Enabled' : 'Disabled'} />
         </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ my: 1, minHeight: 60 }}>{scenario.description}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ my: 1, minHeight: 60, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }} title={scenario.description}>{scenario.description}</Typography>
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-          <Chip size="small" label={describeSchedule(scenario)} />
-          <Chip size="small" variant="outlined" label={`${scenario.stepCount} steps`} />
+          <Code>{describeSchedule(scenario)}</Code>
+          {/* Satın alma senaryoları adım değil, üç tabloya yazan bir akış üretir. */}
+          <Code>{scenario.stepCount > 0 ? `${scenario.stepCount} steps` : 'multi-table flow'}</Code>
         </Stack>
       </CardContent>
       <Stack direction="row" spacing={1} sx={{ p: 2, pt: 0 }}>

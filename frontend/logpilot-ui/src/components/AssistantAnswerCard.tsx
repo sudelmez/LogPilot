@@ -1,26 +1,21 @@
 import { Link } from 'react-router-dom';
 import {
-  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, Chip, LinearProgress,
-  Stack, Tooltip, Typography,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, LinearProgress, Stack, Tooltip, Typography,
 } from '@mui/material';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import HistoryIcon from '@mui/icons-material/History';
 import type { ChatMessage, ConfidenceLevel } from '../api/chatTypes';
 import { formatDateTime } from '../lib/format';
+import { MONO } from '../theme';
 import AnswerFeedback from './AnswerFeedback';
+import { Code, RouteLine, SectionLabel, StatusDot } from './ui';
+import type { RouteStop, Tone } from './ui';
 
-const confidenceColor: Record<ConfidenceLevel, 'default' | 'success' | 'info' | 'warning' | 'error'> = {
-  NotApplicable: 'default', Insufficient: 'error', Low: 'warning', Medium: 'info', High: 'success',
+const confidenceTone: Record<ConfidenceLevel, Tone> = {
+  NotApplicable: 'neutral', Insufficient: 'error', Low: 'warning', Medium: 'info', High: 'success',
 };
 
-// LinearProgress 'default' rengini desteklemez.
-function progressColor(level: ConfidenceLevel) {
-  const color = confidenceColor[level];
-  return color === 'default' ? 'primary' : color;
-}
-
 function logsLink(ids: string[], correlationId?: string): string {
-  // range=all: kanıt eski olsa bile Logs Explorer'da görünsün
+  // range=all: kanıt eski olsa bile Logs ekranında görünsün
   return correlationId ? `/logs?correlationId=${correlationId}&range=all` : `/logs?logId=${ids[0]}&range=all`;
 }
 
@@ -34,146 +29,170 @@ export default function AssistantAnswerCard({ message }: { message: ChatMessage 
   }
 
   const showConfidence = answer.confidence !== 'NotApplicable';
+  // İmza öğesi: zincirleme araçların gezdiği tablolar (sonuncu zincir yeterli; çoğu cevapta tektir).
+  const route: RouteStop[] = [...message.toolExecutions].reverse().find((t) => t.path && t.path.length > 0)?.path ?? [];
 
   return (
-    <Stack spacing={2}>
-      <Typography variant="body1" sx={{ fontWeight: 600 }}>{answer.summary}</Typography>
+    <Stack spacing={2.25}>
+      <Typography variant="body1" sx={{ fontWeight: 550, maxWidth: '78ch' }}>{answer.summary}</Typography>
 
       {answer.clarifyingQuestion && <Alert severity="info" variant="outlined">{answer.clarifyingQuestion}</Alert>}
 
-      {answer.probableCause && (
+      {route.length > 0 && (
         <Box>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
-            <Typography variant="overline" color="text.secondary">Probable cause</Typography>
+          <SectionLabel>Path through the logs</SectionLabel>
+          <RouteLine stops={route} />
+        </Box>
+      )}
+
+      {answer.probableCause && (
+        <Box sx={{ maxWidth: '78ch' }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'baseline', mb: 0.5 }}>
+            <SectionLabel>Probable cause</SectionLabel>
             {showConfidence && (
               <Tooltip arrow title={
                 <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                    Confidence is computed from the evidence ({answer.confidenceScore}/100)
+                  <Typography variant="caption" sx={{ fontWeight: 700 }} component="div">
+                    Computed from the evidence: {answer.confidenceScore}/100
                   </Typography>
-                  {answer.confidenceFactors.map((f) => <Typography key={f} variant="caption" sx={{ display: 'block' }}>{f}</Typography>)}
+                  {answer.confidenceFactors.map((f) => <Typography key={f} variant="caption" component="div">{f}</Typography>)}
                 </Box>}>
-                <Chip size="small" color={confidenceColor[answer.confidence]} label={`${answer.confidence} confidence`} />
+                <Box sx={{ display: 'inline-flex', cursor: 'help' }}>
+                  <StatusDot tone={confidenceTone[answer.confidence]} label={`${answer.confidence} confidence`} />
+                </Box>
               </Tooltip>
             )}
           </Stack>
           <Typography variant="body2">{answer.probableCause}</Typography>
           {showConfidence && (
-            <LinearProgress variant="determinate" value={answer.confidenceScore} color={progressColor(answer.confidence)}
-              sx={{ mt: 1, height: 5, borderRadius: 3, maxWidth: 260 }} />
+            <LinearProgress variant="determinate" value={answer.confidenceScore}
+              color={confidenceTone[answer.confidence] === 'neutral' ? 'primary' : confidenceTone[answer.confidence] as 'error' | 'warning' | 'info' | 'success'}
+              sx={{ mt: 1, maxWidth: 220, bgcolor: 'background.raised' }} aria-label="Confidence" />
           )}
         </Box>
       )}
 
-      {!answer.probableCause && showConfidence && answer.confidence === 'Insufficient' && (
-        <Chip size="small" color="error" variant="outlined" label="Insufficient evidence" sx={{ alignSelf: 'flex-start' }} />
+      {!answer.probableCause && answer.confidence === 'Insufficient' && (
+        <StatusDot tone="error" label="Insufficient evidence" />
       )}
 
       {answer.evidence.length > 0 && (
         <Box>
-          <Typography variant="overline" color="text.secondary">Evidence</Typography>
-          <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', mt: 0.5 }}>
+          <SectionLabel>Evidence</SectionLabel>
+          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
             {answer.evidence.map((e, i) => (
-              <Card key={`${e.errorCode}-${e.service}-${i}`}>
-                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                  <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Chip size="small" color="error" variant="outlined" label={e.errorCode} />
-                    <Typography variant="caption" color="text.secondary">{e.count}×</Typography>
+              <Box key={`${e.errorCode}-${e.service}-${i}`} sx={{
+                display: 'grid', gap: 1, alignItems: 'center', px: 1.5, py: 1,
+                gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1.3fr) minmax(0, 1fr) auto' },
+                borderTop: i === 0 ? 0 : 1, borderColor: 'divider',
+              }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    <Code tone="error">{e.errorCode}</Code>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: MONO }}>×{e.count}</Typography>
                   </Stack>
-                  <Typography variant="body2" sx={{ mt: 0.5 }}>{e.service}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  <Typography variant="body2" sx={{ mt: 0.25, fontWeight: 600 }}>{e.service}</Typography>
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="caption" color="text.secondary" component="div" sx={{ fontFamily: MONO }}>
                     {formatDateTime(e.firstSeen)}{e.lastSeen && e.lastSeen !== e.firstSeen ? ` → ${formatDateTime(e.lastSeen)}` : ''}
                   </Typography>
                   {e.userCodes.length > 0 && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Users: {e.userCodes.join(', ')}</Typography>
+                    <Typography variant="caption" color="text.secondary" component="div" noWrap title={e.userCodes.join(', ')}>
+                      Users: {e.userCodes.join(', ')}
+                    </Typography>
                   )}
-                  <Button size="small" component={Link} to={logsLink(e.logIds, e.correlationIds[0])} sx={{ mt: 0.5, px: 0 }}>
-                    Open related logs
-                  </Button>
-                </CardContent>
-              </Card>
+                </Box>
+                <Button size="small" component={Link} to={logsLink(e.logIds, e.correlationIds[0])} sx={{ justifySelf: { sm: 'end' } }}>
+                  Open logs
+                </Button>
+              </Box>
             ))}
           </Box>
         </Box>
       )}
 
       {answer.affectedServices.length > 0 && (
-        <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-          <Typography variant="overline" color="text.secondary">Affected services</Typography>
-          {answer.affectedServices.map((s) => <Chip key={s} size="small" label={s} />)}
+        <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <SectionLabel>Affected services</SectionLabel>
+          {answer.affectedServices.map((s) => <Code key={s}>{s}</Code>)}
         </Stack>
       )}
 
       {answer.suggestedActions.length > 0 && (
-        <Box>
-          <Typography variant="overline" color="text.secondary">Suggested troubleshooting steps</Typography>
-          <Box component="ol" sx={{ m: 0, pl: 3 }}>
+        <Box sx={{ maxWidth: '78ch' }}>
+          <SectionLabel>Suggested next steps</SectionLabel>
+          <Box component="ol" sx={{ m: 0, pl: 2.5, '& li': { mb: 0.5 } }}>
             {answer.suggestedActions.map((a) => <Typography key={a} component="li" variant="body2">{a}</Typography>)}
           </Box>
         </Box>
       )}
 
       {answer.relatedCases.length > 0 && (
-        <Box>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <HistoryIcon fontSize="small" color="primary" />
-            <Typography variant="overline" color="text.secondary">Related past cases</Typography>
-          </Stack>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-            Previously verified by people for the same error. Hints only: not evidence for this answer.
+        <Box sx={{ maxWidth: '78ch' }}>
+          <SectionLabel>Solved before</SectionLabel>
+          <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 1 }}>
+            Fixes people verified for the same error. A hint, not evidence for this answer.
           </Typography>
           <Stack spacing={1}>
             {answer.relatedCases.map((c) => (
-              <Card key={c.id} variant="outlined">
-                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                  <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{c.title}</Typography>
-                    {c.errorCodes.map((code) => <Chip key={code} size="small" variant="outlined" label={code} />)}
-                  </Stack>
-                  <Typography variant="body2" sx={{ mt: 0.5 }}><b>Fixed by:</b> {c.resolution}</Typography>
-                  {c.rootCause && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Root cause: {c.rootCause}</Typography>}
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    Recorded {formatDateTime(c.createdAt)} ·{' '}
-                    <Box component={Link} to={`/knowledge?id=${c.id}`} sx={{ color: 'primary.main' }}>open in knowledge base</Box>
-                  </Typography>
-                </CardContent>
-              </Card>
+              <Box key={c.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, px: 1.5, py: 1 }}>
+                <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{c.title}</Typography>
+                  {c.errorCodes.map((code) => <Code key={code}>{code}</Code>)}
+                </Stack>
+                <Typography variant="body2" sx={{ mt: 0.5 }}><Box component="span" sx={{ fontWeight: 600 }}>Fixed by:</Box> {c.resolution}</Typography>
+                {c.rootCause && <Typography variant="caption" color="text.secondary" component="div">Root cause: {c.rootCause}</Typography>}
+                <Typography variant="caption" color="text.secondary" component="div">
+                  Recorded {formatDateTime(c.createdAt)} · <Link to={`/knowledge?id=${c.id}`}>open in knowledge base</Link>
+                </Typography>
+              </Box>
             ))}
           </Stack>
         </Box>
       )}
 
       {answer.dataLimitations.length > 0 && (
-        <Alert severity="info" variant="outlined" sx={{ '& .MuiAlert-message': { width: '100%' } }}>
-          <Typography variant="caption" sx={{ fontWeight: 700 }}>What the data cannot tell</Typography>
-          {answer.dataLimitations.map((l) => <Typography key={l} variant="caption" sx={{ display: 'block' }}>• {l}</Typography>)}
-        </Alert>
+        <Box sx={{ maxWidth: '78ch' }}>
+          <SectionLabel>What the data cannot tell</SectionLabel>
+          <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+            {answer.dataLimitations.map((l) => <Typography key={l} component="li" variant="caption" color="text.secondary">{l}</Typography>)}
+          </Box>
+        </Box>
       )}
 
-      {answer.evidenceLogIds.length > 0 && (
-        <Button size="small" variant="outlined" component={Link} to={`/logs?logId=${answer.evidenceLogIds[0]}&range=all`}
-          sx={{ alignSelf: 'flex-start' }}>
-          Open first evidence log
-        </Button>
-      )}
-
-      <AnswerFeedback message={message} />
+      <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap', pt: 0.5, borderTop: 1, borderColor: 'divider' }}>
+        {answer.evidenceLogIds.length > 0 && (
+          <Button size="small" variant="outlined" component={Link} to={`/logs?logId=${answer.evidenceLogIds[0]}&range=all`}>
+            Open first evidence log
+          </Button>
+        )}
+        <Box sx={{ flexGrow: 1 }} />
+        <AnswerFeedback message={message} />
+      </Stack>
 
       {message.toolExecutions.length > 0 && (
-        <Accordion disableGutters variant="outlined" sx={{ '&:before': { display: 'none' } }}>
-          <AccordionSummary expandIcon={<ExpandMore />}>
+        <Accordion disableGutters elevation={0} sx={{ bgcolor: 'transparent', border: 1, borderColor: 'divider', borderRadius: '8px !important', '&:before': { display: 'none' } }}>
+          <AccordionSummary expandIcon={<ExpandMore />} sx={{ minHeight: 36, '& .MuiAccordionSummary-content': { my: 0.75 } }}>
             <Typography variant="caption" color="text.secondary">
-              Investigation: {message.toolExecutions.length} tool call{message.toolExecutions.length === 1 ? '' : 's'}
-              {message.provider ? ` · provider: ${message.provider}` : ''}
+              {message.toolExecutions.length} tool call{message.toolExecutions.length === 1 ? '' : 's'}
+              {message.provider ? ` · ${message.provider}` : ''}
             </Typography>
           </AccordionSummary>
-          <AccordionDetails>
-            <Stack spacing={0.5}>
+          <AccordionDetails sx={{ pt: 0 }}>
+            <Stack spacing={0.75}>
               {message.toolExecutions.map((t, i) => (
-                <Typography key={`${t.name}-${i}`} variant="caption" sx={{ fontFamily: 'monospace' }}>
-                  {t.name}({t.argumentsJson}) → {t.error ? `error: ${t.error}` : `${t.resultCount} result(s)`}
-                  {t.truncated ? ' · truncated' : ''}{t.flaggedContent > 0 ? ` · ${t.flaggedContent} instruction-like text(s) removed` : ''} · {t.durationMs} ms
-                </Typography>
+                <Box key={`${t.name}-${i}`} sx={{ fontFamily: MONO, fontSize: '0.75rem', overflowWrap: 'anywhere' }}>
+                  <Box component="span" sx={{ fontWeight: 650 }}>{t.name}</Box>
+                  <Box component="span" sx={{ color: 'text.secondary' }}>({t.argumentsJson})</Box>
+                  {' → '}
+                  {t.error
+                    ? <Box component="span" sx={{ color: 'error.main' }}>error: {t.error}</Box>
+                    : <span>{t.resultCount} result{t.resultCount === 1 ? '' : 's'}</span>}
+                  <Box component="span" sx={{ color: 'text.secondary' }}>
+                    {t.truncated ? ' · truncated' : ''}{t.flaggedContent > 0 ? ` · ${t.flaggedContent} instruction-like text removed` : ''} · {t.durationMs} ms
+                  </Box>
+                </Box>
               ))}
             </Stack>
           </AccordionDetails>

@@ -1,19 +1,19 @@
-import { Chip } from '@mui/material';
-import type { ChipProps } from '@mui/material';
 import type { IncidentSeverity, IncidentStatus } from '../api/incidentTypes';
+import { StatusDot } from './ui';
+import type { Tone } from './ui';
 
-const severityColor: Record<IncidentSeverity, ChipProps['color']> = {
-  Low: 'default', Medium: 'info', High: 'warning', Critical: 'error',
+const severityTone: Record<IncidentSeverity, Tone> = {
+  Low: 'neutral', Medium: 'info', High: 'warning', Critical: 'error',
 };
 
 export function IncidentSeverityChip({ severity }: { severity: IncidentSeverity }) {
-  return <Chip size="small" label={severity} color={severityColor[severity]} variant={severity === 'Critical' ? 'filled' : 'outlined'} />;
+  return <StatusDot tone={severityTone[severity]} label={severity} strong={severity === 'Critical'} />;
 }
 
-const statusColor: Record<IncidentStatus, ChipProps['color']> = {
+const statusTone: Record<IncidentStatus, Tone> = {
   Open: 'error', Investigating: 'warning', Resolved: 'success',
 };
 
 export function IncidentStatusChip({ status }: { status: IncidentStatus }) {
-  return <Chip size="small" label={status} color={statusColor[status]} />;
+  return <StatusDot tone={statusTone[status]} label={status} />;
 }

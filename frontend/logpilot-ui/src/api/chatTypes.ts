@@ -54,6 +54,15 @@ export interface ToolExecution {
   truncated: boolean;
   flaggedContent: number;
   error?: string;
+  /** Zincirleme araçlarda gezilen tablolar, sırasıyla (backend araç sonucundan alır). */
+  path?: InvestigationHop[];
+}
+
+export interface InvestigationHop {
+  source: string;
+  lookedUpBy: string;
+  found: boolean;
+  result?: string | null;
 }
 
 export interface ChatMessage {

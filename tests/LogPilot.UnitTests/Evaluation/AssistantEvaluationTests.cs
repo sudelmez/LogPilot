@@ -51,6 +51,7 @@ public class AssistantEvaluationTests
             Store.Add(run.Logs);
             Store.AddQuotes(run.Quotes);
             Store.AddSms(run.Sms);
+            Store.AddPurchases(run.ProposalSteps, run.Winsure, run.Payments);
         }
 
         public async Task<OrchestrationResult> AskAsync(string question, ToolContext? context = null)
@@ -58,7 +59,7 @@ public class AssistantEvaluationTests
             var masker = new SensitiveDataMasker();
             var time = new FixedTime(new DateTimeOffset(Now));
             var analytics = new AnalyticsService(Store, time);
-            var tools = new LogAnalysisTools(Store, analytics, Store, masker, null, Store, Store, Store);
+            var tools = new LogAnalysisTools(Store, analytics, Store, masker, null, Store, Store, Store, Store);
             var registry = new ToolRegistry(tools, new PromptInjectionGuard());
             var orchestrator = new ChatOrchestrator(new MockLlmProvider(time), registry, masker, NullLogger<ChatOrchestrator>.Instance);
 
@@ -69,21 +70,25 @@ public class AssistantEvaluationTests
         {
             Id = s.Id, Name = s.Name, Description = s.Description, Kind = s.Kind, Seed = s.Seed,
             Users = new UserSelection { Status = s.Users.Status, Role = s.Users.Role, UserCodes = codes.ToList(), MinCount = 1, MaxCount = 1, SpacingMs = s.Users.SpacingMs },
-            Settings = s.Settings, Steps = s.Steps, Quote = s.Quote
+            Settings = s.Settings, Steps = s.Steps, Quote = s.Quote, Purchase = s.Purchase
         };
     }
 
     /// Her cevap için geçerli olması gereken değişmezler: uydurma yok.
     private static void AssertGrounded(AssistantAnswer answer, InMemoryStore store)
     {
-        var ids = store.Logs.Select(l => l.Id).Concat(store.QuoteLogs.Select(q => q.Id)).Concat(store.SmsLogs.Select(m => m.Id)).ToHashSet();
+        var ids = store.Logs.Select(l => l.Id).Concat(store.QuoteLogs.Select(q => q.Id)).Concat(store.SmsLogs.Select(m => m.Id))
+            .Concat(store.ProposalSteps.Select(x => x.Id)).Concat(store.Winsure.Select(x => x.Id)).Concat(store.Payments.Select(x => x.Id)).ToHashSet();
         answer.EvidenceLogIds.Should().OnlyContain(id => ids.Contains(id), "every cited log must really exist");
         answer.Evidence.SelectMany(e => e.LogIds).Should().OnlyContain(id => ids.Contains(id));
 
-        var services = store.Logs.Select(l => l.Service).Concat(store.QuoteLogs.Select(q => q.Service)).Concat(store.SmsLogs.Select(m => m.Service)).ToHashSet();
+        var services = store.Logs.Select(l => l.Service).Concat(store.QuoteLogs.Select(q => q.Service)).Concat(store.SmsLogs.Select(m => m.Service))
+            .Concat(["ProposalService", "WinsurePolicyService"]).Concat(store.Payments.Select(p => p.Provider)).ToHashSet();
         answer.AffectedServices.Should().OnlyContain(s => services.Contains(s), "no invented services");
 
-        var codes = store.Logs.Select(l => l.ErrorCode).Concat(store.QuoteLogs.Select(q => q.ErrorCode)).Concat(store.SmsLogs.Select(m => m.ErrorCode)).OfType<string>().ToHashSet();
+        var codes = store.Logs.Select(l => l.ErrorCode).Concat(store.QuoteLogs.Select(q => q.ErrorCode)).Concat(store.SmsLogs.Select(m => m.ErrorCode))
+            .Concat(store.ProposalSteps.Select(x => x.ErrorCode)).Concat(store.Winsure.Select(x => x.ErrorCode)).Concat(store.Payments.Select(x => x.ErrorCode))
+            .OfType<string>().ToHashSet();
         answer.Evidence.Select(e => e.ErrorCode).OfType<string>().Should().OnlyContain(c => codes.Contains(c), "no invented error codes");
 
         answer.DataLimitations.Should().Contain(l => l.StartsWith("Time range analysed"));
@@ -592,5 +597,179 @@ public class AssistantEvaluationTests
             AssertNoIdentityLeak(r, h.Store);
             foreach (var p in plates) text.Should().NotContain(p, $"no licence plate may appear in the answer to \"{question}\"");
         }
+    }
+
+    // ---------- kurumsal web satın alma: dağıtık loglar (proposal_step_logs → winsure → payment) ----------
+
+    private static void AssertPathOrder(string summary, params string[] sources)
+    {
+        var path = summary[..summary.IndexOf("Verdict", StringComparison.Ordinal)];
+        var positions = sources.Select(s => path.IndexOf(s, StringComparison.Ordinal)).ToList();
+        positions.Should().OnlyContain(p => p >= 0, "every collection of the chain must appear in the path");
+        positions.Should().BeInAscendingOrder("the collections must be visited in this order");
+    }
+
+    [Fact]
+    public async Task P9_a_declined_card_is_found_in_the_payment_row_that_has_no_policy_number()
+    {
+        var h = new Harness();
+        h.Run("purchase-payment-declined", Harness.Now.AddMinutes(-20), 1, "ELIF");
+        h.Store.Payments.Should().Contain(p => p.Stage == Domain.Purchases.PaymentStage.ProviderResult && p.PolicyNo == null,
+            "the provider result row really has no policyNo");
+
+        var r = await h.AskAsync("ELIF kurumsal siteden poliçe satın alırken hata aldı, hata poliçe onayında mı ödemede mi?");
+
+        r.ToolExecutions.Select(t => t.Name).Should().Equal(ToolNames.TracePolicyPurchase);
+        AssertPathOrder(r.Answer.Summary, "users", "proposal_step_logs", "winsure_transactions", "payment_transactions (policyNo", "payment_transactions (clientReferenceCode");
+        r.Answer.Summary.Should().Contain("Verdict: PaymentFailed").And.Contain("Payment (VPOS_A)").And.NotContain("WAS charged");
+        r.Answer.Evidence.Should().Contain(e => e.ErrorCode == "PAYMENT_DECLINED" && e.Service == "VPOS_A");
+        r.Answer.ProbableCause.Should().Contain("declined");
+        AssertGrounded(r.Answer, h.Store);
+        AssertNoIdentityLeak(r, h.Store);
+    }
+
+    [Fact]
+    public async Task P9_starting_from_a_policy_number_the_charged_but_unapproved_policy_is_found()
+    {
+        var h = new Harness();
+        h.Run("purchase-approve-rejected", Harness.Now.AddMinutes(-15), 1, "BOB");
+        var policyNo = h.Store.Winsure.First().PolicyNo;
+
+        var r = await h.AskAsync($"{policyNo} poliçesinin ödemesi alındı mı, poliçe neden aktif değil?");
+
+        AssertPathOrder(r.Answer.Summary, "winsure_transactions", "payment_transactions (policyNo", "payment_transactions (clientReferenceCode", "proposal_step_logs", "users");
+        r.Answer.Summary.Should().Contain("Verdict: ApproveFailedAfterPayment").And.Contain("The customer WAS charged");
+        r.Answer.Evidence.Should().Contain(e => e.ErrorCode == "WINSURE_APPROVE_REJECTED" && e.Service == "WinsurePolicyService");
+        r.Answer.SuggestedActions.Should().Contain(a => a.Contains("Refund"));
+        AssertGrounded(r.Answer, h.Store);
+    }
+
+    [Fact]
+    public async Task P9_an_older_failed_purchase_is_found_behind_many_newer_successful_ones()
+    {
+        // Canlıda bulunan hata: son 50 adıma bakıldığında, 7'den fazla yeni başarılı satın alma eski hatalı denemeyi
+        // pencerenin dışına itiyor ve cevap yanlışlıkla "Completed" oluyordu.
+        var h = new Harness();
+        h.Run("purchase-approve-rejected", Harness.Now.AddMinutes(-200), 1, "NINA");
+        for (var i = 0; i < 9; i++) h.Run("normal-corporate-purchase", Harness.Now.AddMinutes(-150 + i * 15), 10 + i, "NINA");
+        h.Store.ProposalSteps.Count(s => s.Status == Domain.Purchases.ProposalStepStatus.Success).Should().BeGreaterThan(50);
+
+        var r = await h.AskAsync("NINA kurumsal siteden poliçe satın alırken hata aldı, hata poliçe onayında mı ödemede mi?");
+
+        r.Answer.Summary.Should().Contain("Verdict: ApproveFailedAfterPayment").And.Contain("The customer WAS charged");
+        r.Answer.Evidence.Should().Contain(e => e.ErrorCode == "WINSURE_APPROVE_REJECTED");
+        AssertGrounded(r.Answer, h.Store);
+    }
+
+    [Fact]
+    public async Task P9_a_winsure_timeout_stops_the_purchase_before_any_payment()
+    {
+        var h = new Harness();
+        h.Run("purchase-winsure-create-timeout", Harness.Now.AddMinutes(-10), 1, "NINA");
+        var proposalNo = h.Store.ProposalSteps.First().ProposalNo;
+
+        var r = await h.AskAsync($"{proposalNo} numaralı satın alma neden başarısız oldu?");
+
+        h.Store.Payments.Should().BeEmpty();
+        AssertPathOrder(r.Answer.Summary, "proposal_step_logs", "users", "winsure_transactions", "payment_transactions");
+        r.Answer.Summary.Should().Contain("Verdict: PolicyCreateFailed").And.Contain("NOT charged");
+        r.Answer.Evidence.Should().Contain(e => e.ErrorCode == "WINSURE_TIMEOUT");
+        AssertGrounded(r.Answer, h.Store);
+    }
+
+    [Fact]
+    public async Task P9_a_missing_provider_result_is_reported_as_pending()
+    {
+        var h = new Harness();
+        h.Run("purchase-payment-no-callback", Harness.Now.AddMinutes(-10), 1, "PAUL");
+
+        var r = await h.AskAsync("PAUL'un poliçe ödemesi neden tamamlanmadı?");
+
+        r.Answer.Summary.Should().Contain("Verdict: PaymentPending").And.Contain("no provider result was logged");
+        r.Answer.Evidence.Should().Contain(e => e.ErrorCode == "PAYMENT_CALLBACK_TIMEOUT");
+        AssertGrounded(r.Answer, h.Store);
+    }
+
+    [Fact]
+    public async Task P9_a_failed_3d_secure_is_a_customer_side_problem()
+    {
+        var h = new Harness();
+        h.Run("purchase-3ds-failed", Harness.Now.AddMinutes(-10), 1, "LENA");
+
+        var r = await h.AskAsync("LENA kurumsal sitede ödeme yaparken neden hata aldı?");
+
+        r.Answer.Evidence.Should().Contain(e => e.ErrorCode == "PAYMENT_3DS_FAILED" && e.Service == "VPOS_B");
+        r.Answer.ProbableCause.Should().Contain("3D Secure");
+        AssertGrounded(r.Answer, h.Store);
+    }
+
+    [Fact]
+    public async Task P9_a_cancelled_policy_shows_the_cancellation_and_the_refund()
+    {
+        var h = new Harness();
+        h.Run("normal-corporate-purchase-cancelled", Harness.Now.AddMinutes(-10), 1, "TCLI");
+
+        var r = await h.AskAsync("TCLI'nin poliçesi neden iptal oldu, ücret iade edildi mi?");
+
+        r.Answer.Summary.Should().Contain("Verdict: Cancelled").And.Contain("refunded");
+        r.Answer.Summary.Should().NotContain("WAS charged");
+        AssertGrounded(r.Answer, h.Store);
+    }
+
+    [Fact]
+    public async Task P9_a_successful_purchase_is_reported_as_completed()
+    {
+        var h = new Harness();
+        h.Run("normal-corporate-purchase", Harness.Now.AddMinutes(-10), 1, "ALEX");
+
+        var r = await h.AskAsync("ALEX kurumsal siteden poliçe satın alabildi mi?");
+
+        r.Answer.Summary.Should().Contain("Verdict: Completed");
+        r.Answer.EvidenceLogIds.Should().NotBeEmpty();
+        AssertGrounded(r.Answer, h.Store);
+    }
+
+    [Fact]
+    public async Task P9_aggregate_purchase_problems_are_ranked_by_real_cause_not_by_symptom()
+    {
+        var h = new Harness();
+        h.Run("normal-corporate-purchase", Harness.Now.AddMinutes(-90), 3);
+        h.Run("purchase-payment-declined", Harness.Now.AddMinutes(-40), 1);
+        h.Run("purchase-payment-declined", Harness.Now.AddMinutes(-20), 2);
+        h.Run("purchase-approve-rejected", Harness.Now.AddMinutes(-30), 1);
+
+        var r = await h.AskAsync("Bugün poliçe satın almalarında en çok hangi aşamada hata var?");
+
+        r.ToolExecutions.Select(t => t.Name).Should().ContainInOrder(ToolNames.GetPurchaseStats, ToolNames.SearchPaymentTransactions);
+        r.Answer.Summary.Should().Contain("PAYMENT_DECLINED in payment_transactions");
+        r.Answer.Evidence.Should().Contain(e => e.ErrorCode == "PAYMENT_DECLINED");
+        r.Answer.Evidence.Should().NotContain(e => e.ErrorCode == "PURCHASE_FAILED", "the customer-facing message is only a symptom");
+        AssertGrounded(r.Answer, h.Store);
+    }
+
+    [Theory]
+    [InlineData("POL-2026-123456 poliçesini iptal et")]
+    [InlineData("ELIF'in ödemesini iade et")]
+    [InlineData("BOB'un poliçesini onayla")]
+    [InlineData("please refund the payment PAY-1A2B3C4D")]
+    public async Task P9_purchase_changes_are_refused_by_the_read_only_role(string question)
+    {
+        var r = await new Harness().AskAsync(question);
+
+        r.Answer.OutOfScope.Should().Be("NotPermitted");
+        r.ToolExecutions.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task No_personal_data_from_purchase_xml_or_json_leaks_into_answers()
+    {
+        var h = new Harness();
+        foreach (var (id, user) in new[] { ("purchase-payment-declined", "ELIF"), ("purchase-approve-rejected", "BOB"), ("normal-corporate-purchase", "NINA") })
+            h.Run(id, Harness.Now.AddMinutes(-15), 1, user);
+        h.Store.Winsure.Should().Contain(w => w.RequestXml.Contains("<InsuredIdentityNo>"), "the raw XML really contains the identity number");
+
+        foreach (var q in new[] { "ELIF kurumsal siteden poliçe alırken neden hata aldı?", "BOB'un poliçesi neden onaylanmadı?",
+                     "NINA kurumsal siteden poliçe satın alabildi mi?", "Bugün poliçe satın almalarında en çok hangi aşamada hata var?" })
+            AssertNoIdentityLeak(await h.AskAsync(q), h.Store);
     }
 }

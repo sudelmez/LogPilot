@@ -3,6 +3,7 @@ using LogPilot.Domain.Incidents;
 using LogPilot.Domain.Knowledge;
 using LogPilot.Domain.Logs;
 using LogPilot.Domain.Notifications;
+using LogPilot.Domain.Purchases;
 using LogPilot.Domain.Quotes;
 using LogPilot.Domain.Scenarios;
 using LogPilot.Domain.Users;
@@ -48,6 +49,25 @@ internal static class MongoMappings
         {
             map.AutoMap();
             map.MapIdMember(x => x.Id).SetIdGenerator(StringObjectIdGenerator.Instance).SetSerializer(new StringSerializer(BsonType.ObjectId));
+        });
+
+        BsonClassMap.TryRegisterClassMap<ProposalStepLog>(map =>
+        {
+            map.AutoMap();
+            map.MapIdMember(x => x.Id).SetIdGenerator(StringObjectIdGenerator.Instance).SetSerializer(new StringSerializer(BsonType.ObjectId));
+        });
+
+        BsonClassMap.TryRegisterClassMap<WinsureTransaction>(map =>
+        {
+            map.AutoMap();
+            map.MapIdMember(x => x.Id).SetIdGenerator(StringObjectIdGenerator.Instance).SetSerializer(new StringSerializer(BsonType.ObjectId));
+        });
+
+        BsonClassMap.TryRegisterClassMap<PaymentTransaction>(map =>
+        {
+            map.AutoMap();
+            map.MapIdMember(x => x.Id).SetIdGenerator(StringObjectIdGenerator.Instance).SetSerializer(new StringSerializer(BsonType.ObjectId));
+            map.MapMember(x => x.Amount).SetSerializer(new NullableSerializer<decimal>(new DecimalSerializer(BsonType.Decimal128)));
         });
 
         BsonClassMap.TryRegisterClassMap<ScenarioExecution>(map =>

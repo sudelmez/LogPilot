@@ -43,36 +43,42 @@ public static partial class ScopeGuard
     private static readonly HashSet<string> ModifyCommands = new(StringComparer.Ordinal)
     {
         "sil", "silin", "silsene", "temizle", "temizleyin", "guncelle", "guncelleyin", "sifirla", "sifirlayin", "kapat", "kapatin",
-        "ekle", "ekleyin", "degistir", "degistirin", "kaldir", "kaldirin", "duzenle", "duzenleyin", "bosalt", "bosaltin"
+        "ekle", "ekleyin", "degistir", "degistirin", "kaldir", "kaldirin", "duzenle", "duzenleyin", "bosalt", "bosaltin",
+        "onayla", "onaylayin"
     };
 
     private static readonly string[] ModifyPhrases =
     [
         "siler misin", "silermisin", "silebilir misin", "silebilirmisin", "temizler misin", "temizleyebilir misin",
         "gunceller misin", "guncelleyebilir misin", "sifirlar misin", "kapatir misin", "kapatabilir misin", "ekler misin",
-        "degistirir misin", "degistirebilir misin", "kaldirir misin", "kaldirabilir misin", "duzenler misin"
+        "degistirir misin", "degistirebilir misin", "kaldirir misin", "kaldirabilir misin", "duzenler misin",
+        "iptal et", "iptal edin", "iptal eder misin", "iptal edebilir misin", "onaylar misin", "onaylayabilir misin",
+        "iade et", "iade edin", "iade eder misin", "iade yap", "geri ode", "tekrar cek", "yeniden cek"
     ];
 
-    [GeneratedRegex(@"(?:^|[.!?]\s*|\b(?:please|can you|could you|would you|pls)\s+)(?:please\s+)?(?:delete|remove|drop|truncate|wipe|purge|update|modify|insert|reset|clear|close|edit|overwrite)\b")]
+    [GeneratedRegex(@"(?:^|[.!?]\s*|\b(?:please|can you|could you|would you|pls)\s+)(?:please\s+)?(?:delete|remove|drop|truncate|wipe|purge|update|modify|insert|reset|clear|close|edit|overwrite|cancel|approve|refund|charge)\b")]
     private static partial Regex EnglishModifyRx();
 
     private static readonly string[] DataObjects =
     [
         "log", "kayit", "tablo", "koleksiyon", "collection", "veri", "data", "database", "veritaban", "db", "mongo", "kullanici",
         "user", "musteri", "customer", "incident", "olay", "teklif", "quote", "police", "policy", "sms", "mesaj", "message",
-        "hafiza", "knowledge", "vaka", "case", "sohbet", "chat", "record", "table", "index"
+        "hafiza", "knowledge", "vaka", "case", "sohbet", "chat", "record", "table", "index", "odeme", "payment", "islem",
+        "transaction", "pol-", "prp-", "pay-"
     ];
 
     private static bool IsModificationRequest(string text, IReadOnlyList<string> words)
     {
-        var command = words.Any(ModifyCommands.Contains) || ModifyPhrases.Any(p => text.Contains(p, StringComparison.Ordinal))
+        // İfade TAM eşleşmeli: "iptal et" bir emirdir, "iptal etti" / "iptal edildi" bir soru cümlesidir.
+        var command = words.Any(ModifyCommands.Contains)
+                      || ModifyPhrases.Any(p => Regex.IsMatch(text, $@"(?<![a-z0-9]){Regex.Escape(p)}(?![a-z0-9])"))
                       || EnglishModifyRx().IsMatch(text);
         return command && DataObjects.Any(o => StartsWord(text, o));
     }
 
     // ---------------- alan sinyalleri (varsa reddetme) ----------------
 
-    [GeneratedRegex(@"\b(?:COR|TRX|TKL|CUS|POL|SMS|USR)-[A-Za-z0-9-]+|\b[0-9a-f]{24}\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?:COR|TRX|TKL|CUS|POL|SMS|USR|PRP|PAY)-[A-Za-z0-9-]+|\b[0-9a-f]{24}\b", RegexOptions.IgnoreCase)]
     private static partial Regex IdentifierRx();
 
     private static readonly string[] DomainSignals =
@@ -88,7 +94,10 @@ public static partial class ScopeGuard
         // platform kavramları
         "giris", "login", "log in", "sign in", "oturum", "token", "otp", "teklif", "quote", "police", "policy", "bildirim",
         "notification", "mesaj", "sms", "kullanici", "user", "musteri", "customer", "acente", "agent", "sigortaci", "insurer",
-        "uygulama", "app"
+        "uygulama", "app",
+        // satın alma
+        "satin", "odeme", "payment", "purchase", "winsure", "tahsil", "3d secure", "iade", "refund", "onaylan", "iptal ol",
+        "cekildi", "cekilmedi"
     ];
 
     // ---------------- konu dışı kalıplar ----------------

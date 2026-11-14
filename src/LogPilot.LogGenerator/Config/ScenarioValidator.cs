@@ -18,7 +18,11 @@ public static partial class ScenarioValidator
 
         if (s.Id != fileStem) errors.Add($"id '{s.Id}' must match the file name '{fileStem}'.");
         if (string.IsNullOrWhiteSpace(s.Name)) errors.Add("name is required.");
-        if (s.Steps.Count == 0) errors.Add("at least one step is required.");
+        if (s.Steps.Count == 0 && s.Purchase is null) errors.Add("at least one step (or a purchase flow) is required.");
+        if (s.Purchase is not null && s.Steps.Count > 0) errors.Add("purchase: a purchase scenario must not define steps.");
+        if (s.Purchase is { Products.Count: 0 }) errors.Add("purchase: products must not be empty.");
+        if (s.Purchase is not null && !string.Equals(s.Users.Role, "Customer", StringComparison.OrdinalIgnoreCase))
+            errors.Add("purchase: users.role must be 'Customer' (the buyer needs an identity number).");
 
         if (s.Users.MinCount < 1 || s.Users.MaxCount < s.Users.MinCount)
             errors.Add("users: minCount must be >= 1 and maxCount must be >= minCount.");

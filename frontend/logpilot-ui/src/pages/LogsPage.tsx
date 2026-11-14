@@ -11,6 +11,9 @@ import LogDetailDrawer from '../components/LogDetailDrawer';
 import PageHeader from '../components/PageHeader';
 import QueryState from '../components/QueryState';
 import { formatDateTime } from '../lib/format';
+import { AskButton, Code } from '../components/ui';
+import { MONO } from '../theme';
+import { askAboutLog } from '../lib/ask';
 import { RANGES } from '../lib/ranges';
 import type { RangeKey } from '../lib/ranges';
 
@@ -66,12 +69,12 @@ export default function LogsPage() {
 
   return (
     <>
-      <PageHeader title="Logs Explorer" subtitle="Search, filter and inspect individual log documents" />
+      <PageHeader title="Logs" subtitle="Application logs. Filter, open a row for the raw document, or follow its correlation id. Filters live in the URL, so a view can be shared." />
 
       <Card sx={{ mb: 2 }}>
-        <CardContent>
+        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
           <Box component="form" onSubmit={(e) => { e.preventDefault(); apply(); }}
-            sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+            sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
             <TextField select size="small" label="Level" value={draft.level}
               onChange={(e) => setDraft({ ...draft, level: e.target.value })}>
               {LEVELS.map((l) => <MenuItem key={l} value={l}>{l || 'All levels'}</MenuItem>)}
@@ -83,6 +86,7 @@ export default function LogsPage() {
             </TextField>
             {TEXT_FILTERS.map((key: TextFilter) => (
               <TextField key={key} size="small" label={key} value={draft[key]}
+                slotProps={{ htmlInput: { style: { fontFamily: MONO, fontSize: 13 } } }}
                 onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
             ))}
             <Stack direction="row" spacing={1}>
@@ -108,25 +112,30 @@ export default function LogsPage() {
                         </TableSortLabel>
                       </TableCell>
                       <TableCell>Level</TableCell>
-                      <TableCell>Application</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>Application</TableCell>
                       <TableCell>Service</TableCell>
                       <TableCell>User</TableCell>
                       <TableCell>Error code</TableCell>
                       <TableCell>Message</TableCell>
+                      <TableCell aria-label="Actions" />
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {data.items.map((log) => (
                       <TableRow key={log.id} hover selected={log.id === logId} sx={{ cursor: 'pointer' }}
                         onClick={() => update({ logId: log.id })}>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDateTime(log.timestamp)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 12, color: 'text.secondary' }}>{formatDateTime(log.timestamp)}</TableCell>
                         <TableCell><SeverityChip level={log.level} /></TableCell>
-                        <TableCell>{log.application}</TableCell>
+                        <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{log.application}</TableCell>
                         <TableCell>{log.service}</TableCell>
-                        <TableCell>{log.userCode ?? '—'}</TableCell>
-                        <TableCell>{log.errorCode ?? '—'}</TableCell>
-                        <TableCell sx={{ maxWidth: 420 }}>
+                        <TableCell sx={{ fontFamily: MONO, fontSize: 12 }}>{log.userCode ?? '—'}</TableCell>
+                        <TableCell>{log.errorCode ? <Code tone={log.level === 'Warning' ? 'warning' : 'error'}>{log.errorCode}</Code> : '—'}</TableCell>
+                        {/* Mesaj kalan genişliği alır ve kırpılır: tablo ekrana sığar, eylem sütunu görünür kalır. */}
+                        <TableCell sx={{ width: '100%', maxWidth: 0, minWidth: 160 }}>
                           <Typography variant="body2" noWrap title={log.message}>{log.message}</Typography>
+                        </TableCell>
+                        <TableCell align="right" sx={{ py: 0, pr: 1 }}>
+                          {(log.level === 'Error' || log.level === 'Critical') && <AskButton compact question={askAboutLog(log)} />}
                         </TableCell>
                       </TableRow>
                     ))}

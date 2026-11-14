@@ -131,6 +131,7 @@ dotnet test
 - [Mimari](docs/architecture.md): katmanlar, veri modeli, indeksler ve trade-off'lar, generator, incident tespiti
 - [AI tasarımı](docs/ai-design.md): araçlar, doğrulama, güven yöntemi, enjeksiyon koruması, sağlayıcı ekleme, kapsam koruması, AI rolleri (salt-okunur MongoDB hesabı) ve KVKK
 - [Sigorta teklifi kurgusu](docs/quote-scenario.md): `logs` ↔ `quote_logs` ↔ `users` ve `sms_logs` eşleştirmesi, teklif/poliçe SMS senaryoları, zincirleme araştırma ve AI yönlendirme playbook'ları
+- [Kurumsal web poliçe satın alma](docs/purchase-scenario.md): `proposal_step_logs` → `winsure_transactions` → `payment_transactions` dağıtık logları, zincir sırası, kararlar ve rol güncelleme
 
 ## Sorun giderme
 - **API açılmıyor / `Mongo:ConnectionString is required`**: `appsettings.json` bulunamadı; çalışma dizinini kontrol edin.

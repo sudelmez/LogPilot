@@ -19,6 +19,11 @@ public static class ToolNames
     public const string TraceCustomerJourney = "TraceCustomerJourney";
     public const string TraceNotificationDelivery = "TraceNotificationDelivery";
     public const string SearchSmsLogs = "SearchSmsLogs";
+    public const string TracePolicyPurchase = "TracePolicyPurchase";
+    public const string SearchProposalSteps = "SearchProposalSteps";
+    public const string SearchWinsureTransactions = "SearchWinsureTransactions";
+    public const string SearchPaymentTransactions = "SearchPaymentTransactions";
+    public const string GetPurchaseStats = "GetPurchaseStats";
 }
 
 public static class ToolJson

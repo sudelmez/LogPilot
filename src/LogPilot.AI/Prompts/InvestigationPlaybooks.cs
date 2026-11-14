@@ -41,7 +41,16 @@ public static partial class InvestigationPlaybooks
             [ToolNames.TraceCustomerJourney, ToolNames.SearchQuoteLogs, ToolNames.GetQuoteFunnel, ToolNames.FindRelatedLogs]),
         new("sms_logs", "sms_logs", "SMS gateway: NotificationGateway + SmsProviderAdapter. Every message: Queued → SentToProvider → Delivered | Failed | Undelivered (operator delivery report).",
             "phone ONLY (no userCode, customerNo, quoteId or policyNo), messageId (SMS-…), templateCode (POLICY_ISSUED, QUOTE_READY, OTP)",
-            [ToolNames.TraceNotificationDelivery, ToolNames.SearchSmsLogs])
+            [ToolNames.TraceNotificationDelivery, ToolNames.SearchSmsLogs]),
+        new("proposal_step_logs", "proposal_step_logs", "Corporate-website policy purchase steps: Start → CustomerInfo → OfferSelected → PolicyCreate → Payment → PaymentResult → PolicyApprove → Completed. Error messages here are what the customer SAW (generic, usually PURCHASE_FAILED).",
+            "userIdentityNo ONLY (no userCode), proposalNo (PRP-…); policyNo is NOT a field – it appears inside the PolicyCreate response JSON",
+            [ToolNames.SearchProposalSteps, ToolNames.TracePolicyPurchase]),
+        new("winsure_transactions", "winsure_transactions", "Winsure, the policy core system: Create / Approve / Edit / Cancel / Print with request/response XML, resulting policy status (Draft, Approved, Cancelled) and the error message.",
+            "policyNo ONLY",
+            [ToolNames.SearchWinsureTransactions, ToolNames.TracePolicyPurchase]),
+        new("payment_transactions", "payment_transactions", "Card payments through the virtual POS providers (VPOS_A, VPOS_B): Initiated → ProviderResult (Success/Failed + bank code) → Refund.",
+            "Initiated row: policyNo + clientReferenceCode (PAY-…). Provider result and refund rows: SAME clientReferenceCode but policyNo EMPTY",
+            [ToolNames.SearchPaymentTransactions, ToolNames.TracePolicyPurchase])
     ];
 
     public static readonly IReadOnlyList<DataLink> Links =
@@ -50,7 +59,11 @@ public static partial class InvestigationPlaybooks
         new("users", "app_logs", "userCode", "the customer's own mobile activity"),
         new("users", "quote_logs", "customerNo / identityNo / userCode", "web quotes carry ONLY identityNo; agent quotes have the agent in userCode"),
         new("quote_logs", "users", "identityNo → phone", "the only way from a quote/policy to a phone number"),
-        new("users", "sms_logs", "phone", "the SMS system knows nothing else")
+        new("users", "sms_logs", "phone", "the SMS system knows nothing else"),
+        new("users", "proposal_step_logs", "identityNo → userIdentityNo", "corporate-website purchases are logged by identity number only"),
+        new("proposal_step_logs", "winsure_transactions", "policyNo (read from the PolicyCreate response JSON)", "no separate policyNo field in the steps"),
+        new("winsure_transactions", "payment_transactions", "policyNo", "finds ONLY the Initiated payment row"),
+        new("payment_transactions", "payment_transactions", "clientReferenceCode", "second hop inside the same table: the provider result and refund rows have no policyNo")
     ];
 
     public static readonly IReadOnlyList<Playbook> All =
@@ -91,12 +104,24 @@ public static partial class InvestigationPlaybooks
             SubjectRule.Required, Priority: 2),
         new("P6", "Did a notification SMS reach the customer? (policy SMS, delivery)",
             "the question is about an SMS/message/notification being sent or delivered, e.g. after a policy was issued",
-            ["sms", "mesaj", "bildirim", "ulaştı", "ulaşmadı", "ulaşmış", "gitti mi", "gitmedi", "gitmiş", "notification", "deliver", "poliçe", "policy", "pol-"],
+            ["sms", "mesaj", "bildirim", "ulaştı", "ulaşmadı", "ulaşmış", "gitti mi", "gitmedi", "gitmiş", "notification", "deliver"],
             ["TKL-20261112-48213 teklifinden basılan poliçenin SMS'i müşteriye ulaştı mı?", "ELIF'e poliçe SMS'i gitti mi?",
              "POL-2026-123456 poliçe bildirimi müşteriye ulaştı mı?", "Poliçe SMS'leri neden ulaşmıyor?"],
             ["quote_logs", "users", "sms_logs"], [ToolNames.TraceNotificationDelivery, ToolNames.SearchSmsLogs],
             "the SMS system only knows phone numbers: never conclude 'not sent' from sms_logs alone without resolving the phone; NeverSent + NOTIFICATION_PUBLISH_FAILED ⇒ cause is in quote_logs; Undelivered ⇒ outside our systems",
             Priority: 10),
+        new("P9", "Corporate-website policy purchase problem (policy approval, payment, cancellation)",
+            "the question is about buying a policy on the corporate website, a payment, a policy's approval/status/cancellation, or where a purchase failed",
+            ["satın", "purchase", "ödeme", "odeme", "payment", "tahsil", "kart", "card", "onay", "approve", "winsure", "kurumsal", "corporate",
+             "iptal", "cancel", "iade", "refund", "poliçe", "policy", "pol-", "prp-", "pay-", "3d secure", "banka"],
+            ["ELIF kurumsal siteden poliçe satın alırken hata aldı, hata poliçe onayında mı ödemede mi?",
+             "POL-2026-123456 poliçesinin ödemesi alındı mı?", "PRP-20261114-12345 numaralı satın alma neden başarısız oldu?",
+             "Bugün poliçe satın almalarında en çok hangi aşamada hata var?", "BOB'un poliçesi neden iptal oldu?"],
+            ["users", "proposal_step_logs", "winsure_transactions", "payment_transactions"],
+            [ToolNames.TracePolicyPurchase, ToolNames.GetPurchaseStats, ToolNames.SearchProposalSteps, ToolNames.SearchWinsureTransactions, ToolNames.SearchPaymentTransactions],
+            "the customer-facing step error (PURCHASE_FAILED) is only a symptom; the payment result row has NO policyNo (go policyNo → clientReferenceCode → result); " +
+            "say whether the customer was charged; PaymentFailed/3DS = customer side, ApproveFailedAfterPayment = charged without a policy (refund/manual approval)",
+            Priority: 8),
         new("P7", "System-wide health, error rates, incidents",
             "no specific person; the question is about services, error rates, incidents or a time window",
             ["incident", "critical", "kritik", "error rate", "hata oran", "hangi servis", "which service", "mongo", "son ", "last ", "same error", "aynı hata", "özetle", "summar"],
@@ -119,23 +144,24 @@ public static partial class InvestigationPlaybooks
     [GeneratedRegex(@"\bCUS-\d{4,}\b", RegexOptions.IgnoreCase)] private static partial Regex CustomerNoRx();
     [GeneratedRegex(@"\bTKL-\d{8}-\d{5}\b", RegexOptions.IgnoreCase)] private static partial Regex QuoteIdRx();
     [GeneratedRegex(@"\bPOL-\d{4}-\d{6}\b", RegexOptions.IgnoreCase)] private static partial Regex PolicyNoRx();
+    [GeneratedRegex(@"\bPRP-\d{8}-\d{5}\b", RegexOptions.IgnoreCase)] private static partial Regex ProposalNoRx();
 
     private static readonly HashSet<string> NotPeople = new(StringComparer.Ordinal)
     {
         "API", "SMS", "HTTP", "HTTPS", "JSON", "COR", "TRX", "USR", "MONGO", "MONGODB", "AI", "UTC", "LOGIN", "ERROR", "TODAY", "WHY",
         "THE", "AND", "CAN", "ARE", "IS", "ANY", "WHAT", "WHICH", "HOW", "SQL", "TKL", "CUS", "POL", "INS", "SBM", "KPS", "EGM",
-        "NRD", "AKS", "GNS", "OTP", "DLR"
+        "NRD", "AKS", "GNS", "OTP", "DLR", "PRP", "PAY", "VPOS", "XML", "JSON", "WS"
     };
 
     /// Sorudaki somut tanımlayıcılar (kişi kodu, müşteri no, teklif no, poliçe no).
-    public sealed record Signals(string? UserCode, string? CustomerNo, string? QuoteId, string? PolicyNo)
+    public sealed record Signals(string? UserCode, string? CustomerNo, string? QuoteId, string? PolicyNo, string? ProposalNo = null)
     {
-        public bool HasSubject => UserCode is not null || CustomerNo is not null || QuoteId is not null || PolicyNo is not null;
+        public bool HasSubject => UserCode is not null || CustomerNo is not null || QuoteId is not null || PolicyNo is not null || ProposalNo is not null;
 
         /// "userCode=BOB, quoteId=TKL-…" veya hiçbiri yoksa null.
         public string? Describe()
         {
-            var parts = new[] { ("userCode", UserCode), ("customerNo", CustomerNo), ("quoteId", QuoteId), ("policyNo", PolicyNo) }
+            var parts = new[] { ("userCode", UserCode), ("customerNo", CustomerNo), ("quoteId", QuoteId), ("policyNo", PolicyNo), ("proposalNo", ProposalNo) }
                 .Where(x => x.Item2 is not null).Select(x => $"{x.Item1}={x.Item2}").ToList();
             return parts.Count == 0 ? null : string.Join(", ", parts);
         }
@@ -148,7 +174,8 @@ public static partial class InvestigationPlaybooks
             if (!NotPeople.Contains(m.Value)) { user = m.Value; break; }
 
         static string? Upper(Match m) => m.Success ? m.Value.ToUpperInvariant() : null;
-        return new Signals(user, Upper(CustomerNoRx().Match(question)), Upper(QuoteIdRx().Match(question)), Upper(PolicyNoRx().Match(question)));
+        return new Signals(user, Upper(CustomerNoRx().Match(question)), Upper(QuoteIdRx().Match(question)), Upper(PolicyNoRx().Match(question)),
+            Upper(ProposalNoRx().Match(question)));
     }
 
     /// Sorunun en olası playbook'u (yoksa null). Basit ve açıklanabilir: tetikleyici sayısı + öncelik + "kişi var mı" kuralı.

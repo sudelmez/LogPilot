@@ -41,6 +41,16 @@ public sealed class ToolRegistry(ILogAnalysisTools tools, PromptInjectionGuard g
             """{"type":"object","additionalProperties":false,"properties":{"quoteId":{"type":"string"},"policyNo":{"type":"string"},"userCode":{"type":"string"},"customerNo":{"type":"string"},"templateCode":{"type":"string","enum":["POLICY_ISSUED","QUOTE_READY","OTP"]}}}"""),
         new(ToolNames.SearchSmsLogs, "Search SMS gateway logs (collection `sms_logs`). The SMS system only knows phone numbers: give userCode, customerNo or quoteId and the platform resolves the phone through users. Without a person it searches all phones (use onlyProblems=true for failures).",
             """{"type":"object","additionalProperties":false,"properties":{"userCode":{"type":"string"},"customerNo":{"type":"string"},"quoteId":{"type":"string"},"templateCode":{"type":"string","enum":["POLICY_ISSUED","QUOTE_READY","OTP"]},"status":{"type":"string","enum":["Queued","SentToProvider","Delivered","Failed","Undelivered"]},"errorCode":{"type":"string"},"onlyProblems":{"type":"boolean"},"limit":{"type":"integer","minimum":1,"maximum":50}}}"""),
+        new(ToolNames.TracePolicyPurchase, "Multi-hop investigation of ONE corporate-website policy purchase across the distributed purchase logs: users (identity) → proposal_step_logs (policyNo is inside the PolicyCreate response) → winsure_transactions (Create/Approve/Edit/Cancel + XML error) → payment_transactions (policyNo → clientReferenceCode → provider result WITHOUT policyNo). Returns the path hop by hop, the stage where it really failed, verdict (Completed | Cancelled | PaymentFailed | PaymentPending | ApproveFailedAfterPayment | PolicyCreateFailed | AbandonedBeforePolicy | AbandonedBeforePayment | Unknown), whether the customer was charged, findings and evidence. Start with userCode, customerNo, policyNo or proposalNo.",
+            """{"type":"object","additionalProperties":false,"properties":{"userCode":{"type":"string"},"customerNo":{"type":"string"},"policyNo":{"type":"string"},"proposalNo":{"type":"string"}}}"""),
+        new(ToolNames.SearchProposalSteps, "Search corporate-website purchase steps (collection `proposal_step_logs`, keyed by identity number; give userCode/customerNo and the platform resolves it). policyNo searches inside the step responses. onlyErrors=true for failed steps. Messages here are what the CUSTOMER saw, usually a generic symptom (PURCHASE_FAILED).",
+            """{"type":"object","additionalProperties":false,"properties":{"userCode":{"type":"string"},"customerNo":{"type":"string"},"proposalNo":{"type":"string"},"policyNo":{"type":"string"},"step":{"type":"string","enum":["Start","CustomerInfo","OfferSelected","PolicyCreate","Payment","PaymentResult","PolicyApprove","Completed"]},"onlyErrors":{"type":"boolean"},"limit":{"type":"integer","minimum":1,"maximum":50}}}"""),
+        new(ToolNames.SearchWinsureTransactions, "Search the Winsure policy core system (collection `winsure_transactions`, keyed by policyNo): Create / Approve / Edit / Cancel / Print operations with status, resulting policy status and the error message from the XML response.",
+            """{"type":"object","additionalProperties":false,"properties":{"policyNo":{"type":"string"},"operation":{"type":"string","enum":["Create","Approve","Edit","Cancel","Print"]},"onlyFailed":{"type":"boolean"},"limit":{"type":"integer","minimum":1,"maximum":50}}}"""),
+        new(ToolNames.SearchPaymentTransactions, "Search payments (collection `payment_transactions`). IMPORTANT: only the Initiated row has policyNo; the provider result and refunds have the SAME clientReferenceCode but NO policyNo. So: search by policyNo, read clientReferenceCode, then search again by clientReferenceCode to see the result.",
+            """{"type":"object","additionalProperties":false,"properties":{"policyNo":{"type":"string"},"clientReferenceCode":{"type":"string"},"onlyFailed":{"type":"boolean"},"limit":{"type":"integer","minimum":1,"maximum":50}}}"""),
+        new(ToolNames.GetPurchaseStats, "Aggregate corporate-website purchase statistics: started, policy created/failed, payment started/paid/failed/pending, approved, approve failures after payment, cancelled, and error codes per source table and stage with sample logs.",
+            """{"type":"object","additionalProperties":false,"properties":{"product":{"type":"string","enum":["Kasko","Trafik"]}}}"""),
         new(ToolNames.GetCustomerProfile, "Look up the user directory (collection `users`) by userCode, customerNo or quoteId: returns userCode, customerNo, status, roles and MASKED identity number and phone. Use it to map between the keys of the log collections.",
             """{"type":"object","additionalProperties":false,"properties":{"userCode":{"type":"string"},"customerNo":{"type":"string"},"quoteId":{"type":"string"}}}""")
     ];
@@ -126,6 +136,22 @@ public sealed class ToolRegistry(ILogAnalysisTools tools, PromptInjectionGuard g
                     var r = await tools.SearchSmsLogsAsync(Parse<SearchSmsLogsArgs>(json), ctx, token);
                     return Logs(call, watch, r);
                 }
+                case ToolNames.TracePolicyPurchase:
+                {
+                    var r = await tools.TracePolicyPurchaseAsync(Parse<PurchaseTraceArgs>(json), ctx, token);
+                    return Build(call, watch, r, r.Evidence, r.Evidence.Select(l => l.Service), r.Path.Count, false);
+                }
+                case ToolNames.SearchProposalSteps:
+                    return Logs(call, watch, await tools.SearchProposalStepsAsync(Parse<SearchProposalStepsArgs>(json), ctx, token));
+                case ToolNames.SearchWinsureTransactions:
+                    return Logs(call, watch, await tools.SearchWinsureTransactionsAsync(Parse<SearchWinsureArgs>(json), ctx, token));
+                case ToolNames.SearchPaymentTransactions:
+                    return Logs(call, watch, await tools.SearchPaymentTransactionsAsync(Parse<SearchPaymentsArgs>(json), ctx, token));
+                case ToolNames.GetPurchaseStats:
+                {
+                    var r = await tools.GetPurchaseStatsAsync(Parse<PurchaseStatsArgs>(json), ctx, token);
+                    return Build(call, watch, r, r.SampleLogs, r.SampleLogs.Select(l => l.Service), (int)r.Started, false);
+                }
                 case ToolNames.GetCustomerProfile:
                 {
                     // Dizin kaydı log değildir: kanıt listesine girmez.
@@ -155,8 +181,15 @@ public sealed class ToolRegistry(ILogAnalysisTools tools, PromptInjectionGuard g
         var detections = Sanitize(node);
 
         var wrapped = $"<untrusted_log_data tool=\"{call.Name}\">\n{node?.ToJsonString(ToolJson.Options)}\n</untrusted_log_data>";
+        // Zincirleme araçların gezdiği yol: modelin anlatımından bağımsız, araç sonucundan alınır.
+        var path = result switch
+        {
+            NotificationTraceToolResult n => n.Path,
+            PurchaseTraceToolResult p => p.Path,
+            _ => null
+        };
         return new ToolInvocation(call.Name, call.ArgumentsJson, wrapped, logs, services.Distinct().ToList(),
-            count, truncated, detections, null, watch.ElapsedMilliseconds);
+            count, truncated, detections, null, watch.ElapsedMilliseconds, path);
     }
 
     /// Çalıştırılmadan reddedilen çağrı (ör. uydurma kimlik). Modele "Tool error" olarak döner.

@@ -1,0 +1,20 @@
+{
+  "name": "LogPilot",
+  "mode": "operate",
+  "world": "quiet-console",
+  "schemes": [
+    "dark",
+    "light"
+  ],
+  "defaultScheme": "system",
+  "signature": "investigation route line",
+  "motion": {
+    "durationMs": [
+      150,
+      250
+    ],
+    "charts": "none"
+  },
+  "focusRing": "2px solid accent, 2px offset",
+  "tokensSource": "frontend/logpilot-ui/src/theme.ts"
+}

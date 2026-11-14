@@ -1,11 +1,12 @@
+import type { ReactNode } from 'react';
 import { Box, Typography } from '@mui/material';
-import InboxOutlined from '@mui/icons-material/InboxOutlined';
 
-export default function EmptyState({ text = 'No data for this period.' }: { text?: string }) {
+/** Boş durum: ne olduğunu ve bundan sonra ne yapılabileceğini söyler; süs ikonu yok. */
+export default function EmptyState({ text = 'No data for this period.', action }: { text?: string; action?: ReactNode }) {
   return (
-    <Box sx={{ py: 5, textAlign: 'center', color: 'text.secondary' }}>
-      <InboxOutlined sx={{ fontSize: 36, opacity: 0.6 }} />
-      <Typography variant="body2">{text}</Typography>
+    <Box sx={{ py: 4, px: 2, textAlign: 'center' }}>
+      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: '56ch', mx: 'auto' }}>{text}</Typography>
+      {action && <Box sx={{ mt: 1.5 }}>{action}</Box>}
     </Box>
   );
 }

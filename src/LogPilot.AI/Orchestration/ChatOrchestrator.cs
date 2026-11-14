@@ -147,7 +147,8 @@ public sealed partial class ChatOrchestrator(
             ResultCount = i.ResultCount,
             Truncated = i.Truncated,
             FlaggedContent = i.InjectionDetections,
-            Error = i.Error
+            Error = i.Error,
+            Path = i.Path?.Select(h => new InvestigationHop { Source = h.Source, LookedUpBy = h.LookedUpBy, Found = h.Found, Result = h.Result }).ToList() ?? []
         }).ToList();
 
         return new OrchestrationResult(answer, executions, llm.Name);

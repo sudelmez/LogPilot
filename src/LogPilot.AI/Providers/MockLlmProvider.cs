@@ -82,6 +82,30 @@ public sealed partial class MockLlmProvider(TimeProvider time) : ILlmProvider
             "The policy was issued, but PolicyService could not publish the notification event, so the SMS was never requested from the SMS gateway.",
             ["Check the message broker / notification queue health.", "Re-publish the PolicyIssued event (or resend the SMS manually) for the affected policies."],
             "The logs show the broker timeout but not why the broker was slow."),
+        ["PAYMENT_DECLINED"] = new(
+            "The customer's bank declined the card payment (for example insufficient funds), so the purchase stopped and the policy stayed a draft. This is on the customer's side, not a system fault.",
+            ["Tell the customer the bank declined the card and ask them to use another card or contact their bank.", "No refund is needed: nothing was charged."],
+            "The provider code explains the decline but not the customer's bank details."),
+        ["PAYMENT_3DS_FAILED"] = new(
+            "The cardholder could not complete 3D Secure verification, so the payment was not authorised. This is on the customer's side.",
+            ["Ask the customer to retry and complete the 3D Secure (SMS code) step.", "Check whether the 3D Secure page of the provider is reachable if many customers fail."],
+            "The logs do not show why the cardholder failed verification."),
+        ["PAYMENT_CALLBACK_TIMEOUT"] = new(
+            "The payment was started but the provider never returned a result, so the purchase status is unknown.",
+            ["Reconcile the payment with the provider using the clientReferenceCode.", "Check the provider callback endpoint and provider status."],
+            "Without the provider result it is unknown whether the customer was charged."),
+        ["WINSURE_APPROVE_REJECTED"] = new(
+            "The payment succeeded, but Winsure refused to approve the policy because of a business rule (for example an open damage claim).",
+            ["Refund the customer or route the policy to manual approval (authorised staff).", "Inform the customer that the policy could not be approved."],
+            "The Winsure message gives the rule but not the underwriting details."),
+        ["WINSURE_TIMEOUT"] = new(
+            "The Winsure policy core system did not answer while creating the policy, so the purchase stopped before payment; the customer was not charged.",
+            ["Check Winsure policy service health and latency.", "Ask the customer to retry once Winsure is healthy."],
+            "The logs show the timeout but not why Winsure was slow."),
+        ["PURCHASE_FAILED"] = new(
+            "The purchase failed, but this is the generic message the website showed: the cause is in Winsure or in the payment logs.",
+            ["Follow the policyNo into winsure_transactions and payment_transactions."],
+            "PURCHASE_FAILED alone does not identify the root cause."),
         ["QUOTE_FAILED"] = new(
             "The quote failed, but this is a symptom code: the underlying cause is an earlier step of the same quote.",
             ["Look at the earlier steps of the same quoteId to find the underlying error."],
@@ -161,6 +185,29 @@ public sealed partial class MockLlmProvider(TimeProvider time) : ILlmProvider
         var transaction = TransactionIdRx().Match(question);
         var objectId = ObjectIdRx().Match(q);
         var user = ExtractUserCode(question);
+
+        // P9 (kurumsal web satın alma): dağıtık loglarda zincirleme araç; kişi yoksa istatistik + kanıt.
+        if (InvestigationPlaybooks.Classify(question)?.Id == "P9")
+        {
+            var s = InvestigationPlaybooks.Extract(question);
+            if (s.ProposalNo is not null) Add(ToolNames.TracePolicyPurchase, new { proposalNo = s.ProposalNo });
+            else if (s.PolicyNo is not null) Add(ToolNames.TracePolicyPurchase, new { policyNo = s.PolicyNo });
+            else if (s.CustomerNo is not null) Add(ToolNames.TracePolicyPurchase, new { customerNo = s.CustomerNo });
+            else if (s.UserCode is not null) Add(ToolNames.TracePolicyPurchase, new { userCode = s.UserCode });
+            else
+            {
+                Add(ToolNames.GetPurchaseStats, new { });
+                var stats = toolMessages.LastOrDefault(m => m.ToolName == ToolNames.GetPurchaseStats);
+                if (stats is not null && ParseTool<PurchaseStatsToolResult>(stats) is { } st
+                    && st.Errors.FirstOrDefault(e => !ErrorCodeCatalog.IsSymptom(e.ErrorCode)) is { } top)
+                {
+                    if (top.Source == LogSources.Winsure) Add(ToolNames.SearchWinsureTransactions, new { onlyFailed = true, limit = 20 });
+                    else if (top.Source == LogSources.Payments) Add(ToolNames.SearchPaymentTransactions, new { onlyFailed = true, limit = 20 });
+                    else Add(ToolNames.SearchProposalSteps, new { onlyErrors = true, limit = 20 });
+                }
+            }
+            return calls;
+        }
 
         // P6 (bildirim/SMS teslimi): zincirleme araç. Sınıflandırma, orkestratörün modele verdiği ipucuyla AYNI kaynaktan gelir.
         if (InvestigationPlaybooks.Classify(question)?.Id == "P6")
@@ -265,7 +312,8 @@ public sealed partial class MockLlmProvider(TimeProvider time) : ILlmProvider
             .Select(m => $"The {m.ToolName} tool failed: {m.Content}"));
 
         var logs = toolMessages
-            .Where(m => m.ToolName is ToolNames.SearchLogs or ToolNames.GetUserRecentErrors or ToolNames.FindRelatedLogs or ToolNames.SearchQuoteLogs or ToolNames.SearchSmsLogs)
+            .Where(m => m.ToolName is ToolNames.SearchLogs or ToolNames.GetUserRecentErrors or ToolNames.FindRelatedLogs or ToolNames.SearchQuoteLogs or ToolNames.SearchSmsLogs
+                or ToolNames.SearchProposalSteps or ToolNames.SearchWinsureTransactions or ToolNames.SearchPaymentTransactions)
             .Select(ParseTool<LogToolResult>).OfType<LogToolResult>()
             .SelectMany(r => r.Logs).DistinctBy(l => l.Id).ToList();
 
@@ -283,6 +331,30 @@ public sealed partial class MockLlmProvider(TimeProvider time) : ILlmProvider
             logs.AddRange(trace.Evidence.Where(l => logs.All(x => x.Id != l.Id)));
             evidenceIds.AddRange(trace.Evidence.Where(l => l.ErrorCode is null && l.Outcome == "Success").Select(l => l.Id));
             limits.Add("The SMS system only stores phone numbers; the customer was matched to the phone through the user directory.");
+        }
+
+        var purchase = toolMessages.Where(m => m.ToolName == ToolNames.TracePolicyPurchase).Select(ParseTool<PurchaseTraceToolResult>).OfType<PurchaseTraceToolResult>().FirstOrDefault();
+        if (purchase is not null)
+        {
+            summary.Add("Path: " + string.Join(" → ", purchase.Path.Select(h => $"{h.Source} ({h.LookedUpBy}){(h.Found ? "" : " – nothing found")}")) + ".");
+            summary.Add($"Verdict: {purchase.Verdict}" + (purchase.FailedStage is null ? "." : $"; it failed at {purchase.FailedStage}.") +
+                        (purchase.CustomerCharged ? " The customer WAS charged." : ""));
+            summary.AddRange(purchase.Findings);
+            logs.AddRange(purchase.Evidence.Where(l => logs.All(x => x.Id != l.Id)));
+            evidenceIds.AddRange(purchase.Evidence.Where(l => l.ErrorCode is null && l.Outcome == "Success").Select(l => l.Id));
+            limits.Add("Purchase logs are distributed: the payment result row has no policyNo and was matched through clientReferenceCode.");
+        }
+
+        var purchaseStats = toolMessages.Where(m => m.ToolName == ToolNames.GetPurchaseStats).Select(ParseTool<PurchaseStatsToolResult>).OfType<PurchaseStatsToolResult>().FirstOrDefault();
+        if (purchaseStats is not null)
+        {
+            var p = purchaseStats;
+            summary.Add($"{p.Started} purchase(s) started: {p.PolicyCreated} policies created ({p.PolicyCreateFailed} failed), {p.PaymentStarted} payments started, " +
+                        $"{p.Paid} paid, {p.PaymentFailed} failed, {p.PaymentPending} without a provider result, {p.Approved} approved, " +
+                        $"{p.ApproveFailedAfterPayment} rejected by Winsure after payment, {p.Cancelled} cancelled.");
+            var real = p.Errors.Where(e => !ErrorCodeCatalog.IsSymptom(e.ErrorCode)).Take(3).ToList();
+            if (real.Count > 0) summary.Add("Most frequent real causes: " + string.Join(", ", real.Select(e => $"{e.ErrorCode} in {e.Source} at {e.Stage} ({e.Count})")) + ".");
+            logs.AddRange(p.SampleLogs.Where(l => logs.All(x => x.Id != l.Id)));
         }
 
         if (journey is not null)

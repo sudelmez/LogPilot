@@ -4,6 +4,7 @@ using LogPilot.Application.Incidents;
 using LogPilot.Application.Knowledge;
 using LogPilot.Application.Logs;
 using LogPilot.Application.Notifications;
+using LogPilot.Application.Purchases;
 using LogPilot.Application.Quotes;
 using LogPilot.Application.Scenarios;
 using LogPilot.Application.Users;
@@ -55,6 +56,7 @@ public static class DependencyInjection
         services.AddSingleton<ILogReader>(sp => new MongoLogRepository(Reader(sp)));
         services.AddSingleton<IQuoteLogReader>(sp => new MongoQuoteLogRepository(Reader(sp)));
         services.AddSingleton<ISmsLogReader>(sp => new MongoSmsLogRepository(Reader(sp)));
+        services.AddSingleton<IPurchaseLogReader>(sp => new MongoPurchaseLogRepository(Reader(sp)));
         services.AddSingleton<IUserReader>(sp => new MongoUserRepository(Reader(sp)));
         services.AddSingleton<IIncidentReader>(sp => new MongoIncidentRepository(Reader(sp)));
         services.AddSingleton<IKnowledgeReader>(sp => new MongoKnowledgeRepository(Reader(sp)));
@@ -64,6 +66,7 @@ public static class DependencyInjection
         services.AddSingleton<ILogRepository, MongoLogRepository>();
         services.AddSingleton<IQuoteLogRepository, MongoQuoteLogRepository>();
         services.AddSingleton<ISmsLogRepository, MongoSmsLogRepository>();
+        services.AddSingleton<IPurchaseLogRepository, MongoPurchaseLogRepository>();
         services.AddSingleton<IScenarioRepository, MongoScenarioRepository>();
         services.AddSingleton<IScenarioExecutionRepository, MongoScenarioExecutionRepository>();
         services.AddSingleton<IUserRepository, MongoUserRepository>();

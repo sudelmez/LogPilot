@@ -3,6 +3,8 @@ using LogPilot.Application.Logs;
 using LogPilot.Application.Ai;
 using LogPilot.Application.Quotes;
 using LogPilot.Application.Notifications;
+using LogPilot.Application.Purchases;
+using LogPilot.Domain.Purchases;
 using LogPilot.Domain.Notifications;
 using LogPilot.Domain.Quotes;
 using LogPilot.Domain.Logs;
@@ -43,10 +45,14 @@ public static class LogEndpoints
 
         // Asistanın kanıtları iki tablodan gelebilir: id `logs`'ta yoksa `quote_logs`'a bakılır ve aynı şekilde döndürülür
         // (arayüz tek bir log detay çekmecesiyle ikisini de gösterebilsin).
-        group.MapGet("/{id}", async (string id, LogService logs, IQuoteLogRepository quotes, ISmsLogRepository sms, CancellationToken ct) =>
+        group.MapGet("/{id}", async (string id, LogService logs, IQuoteLogRepository quotes, ISmsLogRepository sms,
+                IPurchaseLogRepository purchases, CancellationToken ct) =>
                 await logs.GetByIdAsync(id, ct) is { } log ? Results.Ok(log)
                 : await quotes.GetByIdAsync(id, ct) is { } quote ? Results.Ok(ToLogShape(quote))
                 : await sms.GetByIdAsync(id, ct) is { } message ? Results.Ok(ToLogShape(message))
+                : await purchases.GetProposalStepByIdAsync(id, ct) is { } step ? Results.Ok(ToLogShape(step))
+                : await purchases.GetWinsureByIdAsync(id, ct) is { } winsure ? Results.Ok(ToLogShape(winsure))
+                : await purchases.GetPaymentByIdAsync(id, ct) is { } payment ? Results.Ok(ToLogShape(payment))
                 : Results.NotFound())
             .Produces<LogEntry>()
             .ProducesProblem(StatusCodes.Status404NotFound);
@@ -70,6 +76,42 @@ public static class LogEndpoints
             .Produces<QuoteFunnel>();
 
         return app;
+    }
+
+    /// Satın alma logları: ham request/response (JSON/XML) yetkili personel için gösterilir; kimlik no maskelenir.
+    private static readonly SensitiveDataMasker Masker = new();
+
+    private static LogEntry ToLogShape(ProposalStepLog s) => new()
+    {
+        Id = s.Id, Timestamp = s.Timestamp, Level = s.Level, Application = "CorporateWeb", Service = "ProposalService", Environment = s.Environment,
+        Operation = s.Step, ErrorCode = s.ErrorCode, Message = s.ErrorMessage ?? $"Step {s.Step}: {s.Status}", DurationMs = s.DurationMs,
+        Outcome = s.Status == ProposalStepStatus.Success ? OperationOutcome.Success : OperationOutcome.Failure,
+        Metadata = Meta(LogSources.ProposalSteps, ("proposalNo", s.ProposalNo), ("sessionId", s.SessionId), ("product", s.Product),
+            ("userIdentityNo", LogAnalysisTools.MaskIdentity(s.UserIdentityNo)), ("request", s.RequestJson), ("response", s.ResponseJson))
+    };
+
+    private static LogEntry ToLogShape(WinsureTransaction w) => new()
+    {
+        Id = w.Id, Timestamp = w.Timestamp, Level = w.Level, Application = "Winsure", Service = "WinsurePolicyService", Environment = w.Environment,
+        Operation = w.Operation.ToString(), ErrorCode = w.ErrorCode, Message = w.ErrorMessage ?? $"{w.Operation} {w.Status}", DurationMs = w.DurationMs,
+        Outcome = w.Status == WinsureStatus.Success ? OperationOutcome.Success : OperationOutcome.Failure,
+        Metadata = Meta(LogSources.Winsure, ("policyNo", w.PolicyNo), ("policyStatus", w.PolicyStatus), ("requestXml", w.RequestXml), ("responseXml", w.ResponseXml))
+    };
+
+    private static LogEntry ToLogShape(PaymentTransaction p) => new()
+    {
+        Id = p.Id, Timestamp = p.Timestamp, Level = p.Level, Application = "PaymentGateway", Service = p.Provider, Environment = p.Environment,
+        Operation = p.Stage.ToString(), ErrorCode = p.ErrorCode, Message = p.ErrorMessage ?? $"Payment {p.Stage}: {p.Status}", DurationMs = p.DurationMs,
+        Outcome = p.Status switch { PaymentStatus.Success or PaymentStatus.Refunded => OperationOutcome.Success, PaymentStatus.Failed => OperationOutcome.Failure, _ => null },
+        Metadata = Meta(LogSources.Payments, ("clientReferenceCode", p.ClientReferenceCode), ("policyNo", p.PolicyNo ?? "(empty)"), ("status", p.Status.ToString()),
+            ("providerCode", p.ProviderCode), ("amountTry", p.Amount?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)), ("providerResponse", p.ResponseRaw))
+    };
+
+    private static Dictionary<string, string> Meta(string source, params (string Key, string? Value)[] values)
+    {
+        var d = new Dictionary<string, string> { ["source"] = source };
+        foreach (var (k, v) in values) if (v is not null) d[k] = Masker.MaskRequired(v);
+        return d;
     }
 
     /// SMS logunu uygulama log şeklinde gösterir. Telefon numarası maskelenir.

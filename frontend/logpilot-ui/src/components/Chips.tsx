@@ -1,44 +1,27 @@
-import { Chip } from '@mui/material';
-import type { ChipProps } from '@mui/material';
 import type { ExecutionStatus, HealthStatus, Severity } from '../api/types';
+import { StatusDot } from './ui';
+import type { Tone } from './ui';
 
-const levelColor: Record<Severity, ChipProps['color']> = {
-  Debug: 'default',
-  Information: 'info',
-  Warning: 'warning',
-  Error: 'error',
-  Critical: 'error',
+const levelTone: Record<Severity, Tone> = {
+  Debug: 'neutral', Information: 'info', Warning: 'warning', Error: 'error', Critical: 'error',
 };
 
 export function SeverityChip({ level }: { level: Severity }) {
-  return (
-    <Chip
-      size="small"
-      label={level === 'Information' ? 'Info' : level}
-      color={levelColor[level]}
-      variant={level === 'Critical' ? 'filled' : 'outlined'}
-    />
-  );
+  return <StatusDot tone={levelTone[level]} label={level === 'Information' ? 'Info' : level} strong={level === 'Critical'} />;
 }
 
-const healthColor: Record<HealthStatus, ChipProps['color']> = {
-  Unknown: 'default',
-  Healthy: 'success',
-  Degraded: 'warning',
-  Unhealthy: 'error',
+const healthTone: Record<HealthStatus, Tone> = {
+  Unknown: 'neutral', Healthy: 'success', Degraded: 'warning', Unhealthy: 'error',
 };
 
 export function HealthChip({ status }: { status: HealthStatus }) {
-  return <Chip size="small" label={status} color={healthColor[status]} />;
+  return <StatusDot tone={healthTone[status]} label={status} strong={status === 'Unhealthy'} />;
 }
 
-const executionColor: Record<ExecutionStatus, ChipProps['color']> = {
-  Pending: 'default',
-  Running: 'info',
-  Completed: 'success',
-  Failed: 'error',
+const executionTone: Record<ExecutionStatus, Tone> = {
+  Pending: 'neutral', Running: 'info', Completed: 'success', Failed: 'error',
 };
 
 export function ExecutionChip({ status }: { status: ExecutionStatus }) {
-  return <Chip size="small" label={status} color={executionColor[status]} variant="outlined" />;
+  return <StatusDot tone={executionTone[status]} label={status} />;
 }

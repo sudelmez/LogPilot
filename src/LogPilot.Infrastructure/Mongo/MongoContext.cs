@@ -3,6 +3,7 @@ using LogPilot.Domain.Incidents;
 using LogPilot.Domain.Knowledge;
 using LogPilot.Domain.Logs;
 using LogPilot.Domain.Notifications;
+using LogPilot.Domain.Purchases;
 using LogPilot.Domain.Quotes;
 using LogPilot.Domain.Scenarios;
 using LogPilot.Domain.Users;
@@ -26,6 +27,9 @@ internal sealed class MongoContext
         Logs = db.GetCollection<LogEntry>("logs");
         QuoteLogs = db.GetCollection<QuoteLogEntry>("quote_logs");
         SmsLogs = db.GetCollection<SmsLogEntry>("sms_logs");
+        ProposalSteps = db.GetCollection<ProposalStepLog>("proposal_step_logs");
+        WinsureTransactions = db.GetCollection<WinsureTransaction>("winsure_transactions");
+        PaymentTransactions = db.GetCollection<PaymentTransaction>("payment_transactions");
         Incidents = db.GetCollection<Incident>("incidents");
         ChatSessions = db.GetCollection<ChatSession>("chat_sessions");
         ChatMessages = db.GetCollection<ChatMessage>("chat_messages");
@@ -41,6 +45,10 @@ internal sealed class MongoContext
     public IMongoCollection<QuoteLogEntry> QuoteLogs { get; }
     /// SMS ağ geçidi logları: sadece telefon numarasını tanır.
     public IMongoCollection<SmsLogEntry> SmsLogs { get; }
+    /// Kurumsal web satın alma: adımlar, poliçe çekirdek sistemi (Winsure) ve ödeme. Dağıtık; anahtarlar farklı.
+    public IMongoCollection<ProposalStepLog> ProposalSteps { get; }
+    public IMongoCollection<WinsureTransaction> WinsureTransactions { get; }
+    public IMongoCollection<PaymentTransaction> PaymentTransactions { get; }
     public IMongoCollection<Incident> Incidents { get; }
     public IMongoCollection<ChatSession> ChatSessions { get; }
     public IMongoCollection<ChatMessage> ChatMessages { get; }
