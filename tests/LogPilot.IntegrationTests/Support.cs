@@ -93,7 +93,7 @@ internal static class Seed
             {
                 Id = scenario.Id, Name = scenario.Name, Kind = scenario.Kind, Seed = scenario.Seed,
                 Users = new UserSelection { Status = scenario.Users.Status, Role = scenario.Users.Role, UserCodes = onlyUsers.ToList(), MinCount = 1, MaxCount = 1, SpacingMs = scenario.Users.SpacingMs },
-                Settings = scenario.Settings, Steps = scenario.Steps, Quote = scenario.Quote
+                Settings = scenario.Settings, Steps = scenario.Steps, Quote = scenario.Quote, Purchase = scenario.Purchase
             };
         }
 
@@ -101,6 +101,7 @@ internal static class Seed
         await services.GetRequiredService<ILogRepository>().AddManyAsync(run.Logs, CancellationToken.None);
         await services.GetRequiredService<LogPilot.Application.Quotes.IQuoteLogRepository>().AddManyAsync(run.Quotes, CancellationToken.None);
         await services.GetRequiredService<LogPilot.Application.Notifications.ISmsLogRepository>().AddManyAsync(run.Sms, CancellationToken.None);
+        await services.GetRequiredService<LogPilot.Application.Purchases.IPurchaseLogRepository>().AddManyAsync(run.ProposalSteps, run.Winsure, run.Payments, CancellationToken.None);
     }
 
     public static string Unique(string prefix) => prefix + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();

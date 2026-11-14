@@ -5,6 +5,7 @@ using AwesomeAssertions;
 using LogPilot.Application.Analytics;
 using LogPilot.Application.Logs;
 using LogPilot.Application.Quotes;
+using LogPilot.Application.Purchases;
 using LogPilot.Domain.Analytics;
 using LogPilot.Infrastructure;
 using LogPilot.Infrastructure.Mongo;
@@ -153,6 +154,10 @@ public class MongoRoleTests(AuthMongoFixture mongo) : IClassFixture<AuthMongoFix
         (await sp.GetRequiredService<ILogAnalyticsRepository>().GetErrorGroupsAsync(new TimeRange(now.AddHours(-1), now.AddMinutes(1)), null, CancellationToken.None))
             .Should().Contain(g => g.ErrorCode == "TOKEN_EXPIRED");                                                           // aggregate
         await sp.GetRequiredService<IQuoteLogReader>().GetFunnelAsync(now.AddHours(-1), now, null, null, "INS_NRD", CancellationToken.None);   // distinct
+        var purchases = sp.GetRequiredService<IPurchaseLogReader>();
+        await purchases.SearchProposalStepsAsync(new ProposalStepSearch(now.AddHours(-1), now, ResponseContains: "POL-2026"), CancellationToken.None);   // regex in JSON
+        await purchases.SearchPaymentsAsync(new PaymentSearch(now.AddHours(-1), now, ClientReferenceCodes: ["PAY-00000000"]), CancellationToken.None);
+        await purchases.GetWindowAsync(now.AddHours(-1), now, CancellationToken.None);
 
         // Okuma arayüzünün arkasındaki nesne yazmaya ZORLANSA bile veritabanı reddeder (kod hatasına karşı ikinci kat).
         var forced = async () => await ((ILogRepository)reader).AddManyAsync([Seed.Entry(now, Domain.Logs.LogSeverity.Information)], CancellationToken.None);

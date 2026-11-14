@@ -13,4 +13,5 @@ public sealed record ToolInvocation(
     bool Truncated,
     int InjectionDetections,
     string? Error,
-    long DurationMs);
+    long DurationMs,
+    IReadOnlyList<TraceHop>? Path = null);

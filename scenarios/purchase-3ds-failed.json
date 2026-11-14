@@ -1,0 +1,26 @@
+{
+  "id": "purchase-3ds-failed",
+  "name": "Purchase: 3D Secure verification failed",
+  "description": "The cardholder cannot complete 3D Secure. The reason is only in the payment provider row (no policyNo).",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 420,
+    "probability": 0.4
+  },
+  "purchase": {
+    "outcome": "Payment3dsFailed",
+    "products": [
+      "Kasko"
+    ],
+    "provider": "VPOS_B"
+  },
+  "steps": []
+}

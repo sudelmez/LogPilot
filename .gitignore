@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 
 # start.command Ollama'yı başlattığında bıraktığı işaret (stop.command kapatsın diye)
 .ollama-started-by-logpilot
+
+# impeccable inceleme ekran görüntüleri (yerel)
+.impeccable/review/

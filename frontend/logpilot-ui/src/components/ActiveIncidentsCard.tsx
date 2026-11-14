@@ -13,7 +13,7 @@ export default function ActiveIncidentsCard() {
     (acc, i) => (acc === null || RANK[i.severity] > RANK[acc] ? i.severity : acc), null);
 
   return (
-    <Box component={Link} to="/incidents" sx={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+    <Box component={Link} to="/incidents" sx={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'background-color 150ms', '&:hover': { bgcolor: 'background.raised' } }}>
       <StatCard
         title="Active incidents"
         value={query.isError ? '—' : String(data?.totalCount ?? 0)}

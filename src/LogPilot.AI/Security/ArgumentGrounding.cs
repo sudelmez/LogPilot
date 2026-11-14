@@ -10,7 +10,8 @@ public static class ArgumentGrounding
     /// Değeri dışarıdan gelmesi gereken argümanlar (filtre değerleri — errorCode, product, level… — bu listede değil).
     private static readonly HashSet<string> IdentifierArguments = new(StringComparer.OrdinalIgnoreCase)
     {
-        "userCode", "customerNo", "quoteId", "policyNo", "correlationId", "transactionId", "logId", "incidentId"
+        "userCode", "customerNo", "quoteId", "policyNo", "correlationId", "transactionId", "logId", "incidentId",
+        "proposalNo", "clientReferenceCode"
     };
 
     /// null: argümanlar temellendirilmiş. Aksi halde modele gidecek açıklayıcı hata.

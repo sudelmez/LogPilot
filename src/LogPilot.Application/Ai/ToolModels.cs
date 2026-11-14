@@ -36,6 +36,15 @@ public sealed record SearchSmsLogsArgs(
     string? UserCode = null, string? CustomerNo = null, string? QuoteId = null, string? TemplateCode = null,
     string? Status = null, string? ErrorCode = null, bool? OnlyProblems = null, int? Limit = null);
 
+// ---- Kurumsal web satın alma ----
+public sealed record PurchaseTraceArgs(string? UserCode = null, string? CustomerNo = null, string? PolicyNo = null, string? ProposalNo = null);
+public sealed record SearchProposalStepsArgs(
+    string? UserCode = null, string? CustomerNo = null, string? ProposalNo = null, string? PolicyNo = null, string? Step = null,
+    bool? OnlyErrors = null, int? Limit = null);
+public sealed record SearchWinsureArgs(string? PolicyNo = null, string? Operation = null, bool? OnlyFailed = null, int? Limit = null);
+public sealed record SearchPaymentsArgs(string? PolicyNo = null, string? ClientReferenceCode = null, bool? OnlyFailed = null, int? Limit = null);
+public sealed record PurchaseStatsArgs(string? Product = null);
+
 public sealed record CustomerJourneyArgs(string? UserCode = null, string? CustomerNo = null, string? QuoteId = null, int? Limit = null);
 public sealed record ActiveIncidentsArgs(int? Limit = null);
 public sealed record IncidentDetailsArgs(string? IncidentId = null);
@@ -55,6 +64,9 @@ public static class LogSources
     public const string AppLogs = "app_logs";       // MongoDB `logs`: mobil uygulama + backend servisleri
     public const string QuoteLogs = "quote_logs";   // MongoDB `quote_logs`: sigorta teklif motoru
     public const string SmsLogs = "sms_logs";       // MongoDB `sms_logs`: SMS ağ geçidi (sadece telefon numarasını bilir)
+    public const string ProposalSteps = "proposal_step_logs";     // kurumsal web satın alma adımları (kimlik no + teklif no)
+    public const string Winsure = "winsure_transactions";         // poliçe çekirdek sistemi (policyNo + XML)
+    public const string Payments = "payment_transactions";        // ödeme (policyNo → clientReferenceCode → sağlayıcı sonucu)
 }
 
 public sealed record LogToolResult(IReadOnlyList<LogSnippet> Logs, long TotalMatched, bool Truncated, string Scope);
@@ -118,3 +130,18 @@ public sealed record NotificationTraceToolResult(
     IReadOnlyList<TraceHop> Path, CustomerProfile? Customer, string? QuoteId, string? PolicyNo,
     string Verdict, IReadOnlyList<SmsMessageSummary> Messages, IReadOnlyList<string> Findings,
     IReadOnlyList<LogSnippet> Evidence, string Scope);
+
+/// Satın alma zinciri: her halka (TraceHop) + karar. FailedStage: hatanın gerçekten oluştuğu yer.
+/// Verdict: Completed | Cancelled | PaymentFailed | PaymentPending | ApproveFailedAfterPayment | PolicyCreateFailed |
+///          AbandonedBeforePolicy | AbandonedBeforePayment | Unknown
+public sealed record PurchaseTraceToolResult(
+    IReadOnlyList<TraceHop> Path, CustomerProfile? Customer, string? ProposalNo, string? PolicyNo, string? ClientReferenceCode,
+    string Verdict, string? FailedStage, string? PolicyStatus, string? PaymentStatus, bool CustomerCharged,
+    IReadOnlyList<string> Findings, IReadOnlyList<LogSnippet> Evidence, string Scope);
+
+public sealed record PurchaseErrorStat(string ErrorCode, string Source, string Stage, long Count, IReadOnlyList<string> SampleLogIds);
+
+public sealed record PurchaseStatsToolResult(
+    long Started, long PolicyCreated, long PolicyCreateFailed, long PaymentStarted, long Paid, long PaymentFailed, long PaymentPending,
+    long Approved, long ApproveFailedAfterPayment, long Cancelled, IReadOnlyList<PurchaseErrorStat> Errors,
+    IReadOnlyList<LogSnippet> SampleLogs, string Scope);

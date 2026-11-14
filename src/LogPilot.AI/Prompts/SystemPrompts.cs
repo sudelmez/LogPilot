@@ -69,10 +69,15 @@ public static class SystemPrompts
             QUOTE_REQUEST_FAILED (app side, carries statusCode 401/422/502 and often quoteId), QUOTE_FAILED (quote side).
           Business rules (expected behaviour, not a bug — explain, do not ask engineers to "fix"): USER_INACTIVE,
             RISK_REJECTED (underwriting decline), CUSTOMER_IDENTITY_MISMATCH (customer data does not match KPS).
-          Outside our systems: SMS_UNDELIVERED (operator delivery report: handset unreachable / wrong number).
+          Outside our systems / customer side: SMS_UNDELIVERED (operator delivery report: handset unreachable / wrong number),
+            PAYMENT_DECLINED (bank declined the card, e.g. code 51 insufficient funds), PAYMENT_3DS_FAILED (cardholder failed 3D Secure).
+          Purchase symptom: PURCHASE_FAILED (the generic message the website showed; the cause is in winsure_transactions or payment_transactions).
           Technical faults: TOKEN_EXPIRED, VEHICLE_REGISTRY_TIMEOUT (external SBM), INSURER_PRICING_ERROR (one insurer's API;
             the quote can still be issued with fewer offers), SMS_PROVIDER_ERROR (SMS provider rejected the message),
-            NOTIFICATION_PUBLISH_FAILED (policy issued but the SMS was never requested), DEPENDENCY_UNAVAILABLE, REQUEST_TIMEOUT…
+            NOTIFICATION_PUBLISH_FAILED (policy issued but the SMS was never requested), WINSURE_TIMEOUT (policy core system did not
+            answer while creating the policy; nothing was charged), WINSURE_APPROVE_REJECTED (Winsure refused approval by rule, e.g. open
+            damage claim; if the payment succeeded the customer was charged without a policy), PAYMENT_CALLBACK_TIMEOUT (provider never
+            returned a result; charge status unknown), DEPENDENCY_UNAVAILABLE, REQUEST_TIMEOUT…
         """;
 
     public static string IncidentSummary() => """

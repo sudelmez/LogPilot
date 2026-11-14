@@ -1,0 +1,26 @@
+{
+  "id": "normal-corporate-purchase",
+  "name": "Normal: corporate web policy purchase completed",
+  "description": "A customer buys a policy on the corporate website: Winsure creates and approves the policy, the card payment succeeds. Logs are spread over proposal_step_logs, winsure_transactions and payment_transactions.",
+  "kind": "Normal",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "weight": 8
+  },
+  "purchase": {
+    "outcome": "Completed",
+    "products": [
+      "Kasko",
+      "Trafik"
+    ],
+    "provider": "VPOS_A"
+  },
+  "steps": []
+}

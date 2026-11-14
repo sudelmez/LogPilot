@@ -14,7 +14,8 @@ public static class MongoAccessPolicy
     public const string AiReaderRole = "logpilotAiReader";
 
     public static readonly IReadOnlyList<string> AiReadableCollections =
-        ["logs", "quote_logs", "sms_logs", "users", "incidents", "knowledge_cases"];
+        ["logs", "quote_logs", "sms_logs", "users", "incidents", "knowledge_cases",
+         "proposal_step_logs", "winsure_transactions", "payment_transactions"];
 
     /// Bir hesabın yetkilerinde bulunmaması gereken (veri değiştiren) eylemler.
     public static readonly IReadOnlySet<string> WriteActions = new HashSet<string>(StringComparer.Ordinal)

@@ -3,10 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
     <title>LogPilot</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script>
+      // Sayfa açılırken beyaz parlama olmasın: React yüklenmeden önce doğru renk şemasını seç
+      // (MUI'nin sakladığı tercih, yoksa işletim sistemi ayarı).
+      (function () {
+        try {
+          var mode = localStorage.getItem('mui-mode') || 'system';
+          var dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.setAttribute('data-mui-color-scheme', dark ? 'dark' : 'light');
+        } catch (e) { /* depolama kapalıysa sistem ayarı geçerli */ }
+      })();
+    </script>
     <style>
       html, body, #root { height: 100%; margin: 0; }
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+      html[data-mui-color-scheme='dark'] body { background: #0e1416; }
+      html[data-mui-color-scheme='light'] body { background: #f3f6f6; }
     </style>
   </head>
   <body>

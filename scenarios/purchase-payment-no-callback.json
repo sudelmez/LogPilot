@@ -1,0 +1,26 @@
+{
+  "id": "purchase-payment-no-callback",
+  "name": "Purchase: payment result never arrived",
+  "description": "The payment is started but the provider never returns a result: payment_transactions has only the Initiated row; the website times out after 120 s.",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 480,
+    "probability": 0.4
+  },
+  "purchase": {
+    "outcome": "PaymentNoCallback",
+    "products": [
+      "Trafik"
+    ],
+    "provider": "VPOS_B"
+  },
+  "steps": []
+}

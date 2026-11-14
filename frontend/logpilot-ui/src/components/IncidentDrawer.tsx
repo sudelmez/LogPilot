@@ -11,6 +11,8 @@ import type { IncidentStatus } from '../api/incidentTypes';
 import { formatDateTime, relativeTime } from '../lib/format';
 import { SeverityChip } from './Chips';
 import { IncidentSeverityChip, IncidentStatusChip } from './IncidentChips';
+import { AskButton, Code } from './ui';
+import { askAboutIncident } from '../lib/ask';
 
 const STATUSES: IncidentStatus[] = ['Open', 'Investigating', 'Resolved'];
 
@@ -40,7 +42,9 @@ export default function IncidentDrawer({ id, onClose }: { id: string | null; onC
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', mt: 1 }} useFlexGap>
                 <IncidentSeverityChip severity={data.severity} />
                 <IncidentStatusChip status={data.status} />
-                <Chip size="small" variant="outlined" label={data.errorCode} />
+                <Code tone="error">{data.errorCode}</Code>
+                <Box sx={{ flex: 1 }} />
+                <AskButton question={askAboutIncident(data.errorCode, data.affectedServices)} />
               </Stack>
             </Box>
 
@@ -76,21 +80,21 @@ export default function IncidentDrawer({ id, onClose }: { id: string | null; onC
                   { onSuccess: () => setResolveOpen(false) })} />
 
             <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: '1fr 1fr' }}>
-              <div><Typography variant="overline" color="text.secondary">First seen</Typography><Typography variant="body2">{formatDateTime(data.firstSeenAt)}</Typography></div>
-              <div><Typography variant="overline" color="text.secondary">Last seen</Typography><Typography variant="body2">{formatDateTime(data.lastSeenAt)}</Typography></div>
-              <div><Typography variant="overline" color="text.secondary">Error logs</Typography><Typography variant="body2">{data.logCount.toLocaleString()}</Typography></div>
-              <div><Typography variant="overline" color="text.secondary">Affected users</Typography><Typography variant="body2">{data.affectedUserCodes.length}</Typography></div>
+              <div><Typography variant="subtitle2" color="text.secondary" component="div">First seen</Typography><Typography variant="body2">{formatDateTime(data.firstSeenAt)}</Typography></div>
+              <div><Typography variant="subtitle2" color="text.secondary" component="div">Last seen</Typography><Typography variant="body2">{formatDateTime(data.lastSeenAt)}</Typography></div>
+              <div><Typography variant="subtitle2" color="text.secondary" component="div">Error logs</Typography><Typography variant="body2">{data.logCount.toLocaleString()}</Typography></div>
+              <div><Typography variant="subtitle2" color="text.secondary" component="div">Affected users</Typography><Typography variant="body2">{data.affectedUserCodes.length}</Typography></div>
             </Box>
 
             <Box>
-              <Typography variant="overline" color="text.secondary">Affected services</Typography>
+              <Typography variant="subtitle2" color="text.secondary" component="div">Affected services</Typography>
               <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-                {data.affectedServices.map((s) => <Chip key={s} size="small" label={s} />)}
+                {data.affectedServices.map((s) => <Code key={s}>{s}</Code>)}
               </Stack>
             </Box>
 
             <Box>
-              <Typography variant="overline" color="text.secondary">Affected users</Typography>
+              <Typography variant="subtitle2" color="text.secondary" component="div">Affected users</Typography>
               <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
                 {data.affectedUserCodes.map((u) => (
                   <Chip key={u} size="small" variant="outlined" label={u} component={Link} to={`/logs?userCode=${u}&range=all`} clickable />
@@ -112,8 +116,8 @@ export default function IncidentDrawer({ id, onClose }: { id: string | null; onC
             <Divider />
 
             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="overline" color="text.secondary">Related logs (latest {data.relatedLogIds.length})</Typography>
-              <Button size="small" component={Link} to={`/logs?errorCode=${data.errorCode}&range=all`}>Open in Logs Explorer</Button>
+              <Typography variant="subtitle2" color="text.secondary" component="div">Related logs (latest {data.relatedLogIds.length})</Typography>
+              <Button size="small" component={Link} to={`/logs?errorCode=${data.errorCode}&range=all`}>Open in Logs</Button>
             </Stack>
 
             {logs.isPending && <Skeleton variant="rounded" height={140} />}

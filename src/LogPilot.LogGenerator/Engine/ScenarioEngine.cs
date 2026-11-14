@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using LogPilot.Domain.Logs;
 using LogPilot.Domain.Notifications;
+using LogPilot.Domain.Purchases;
 using LogPilot.Domain.Quotes;
 using LogPilot.Domain.Scenarios;
 using LogPilot.Domain.Users;
@@ -11,11 +12,16 @@ namespace LogPilot.LogGenerator.Engine;
 /// Bir senaryo çalıştırmasının çıktısı: uygulama logları (`logs`) + teklif motoru (`quote_logs`) + SMS ağ geçidi (`sms_logs`).
 public sealed record ScenarioRun(
     IReadOnlyList<LogEntry> Logs, IReadOnlyList<string> CorrelationIds, int Seed,
-    IReadOnlyList<QuoteLogEntry>? QuoteLogs = null, IReadOnlyList<SmsLogEntry>? SmsLogs = null)
+    IReadOnlyList<QuoteLogEntry>? QuoteLogs = null, IReadOnlyList<SmsLogEntry>? SmsLogs = null,
+    IReadOnlyList<ProposalStepLog>? ProposalStepLogs = null, IReadOnlyList<WinsureTransaction>? WinsureLogs = null,
+    IReadOnlyList<PaymentTransaction>? PaymentLogs = null)
 {
     public IReadOnlyList<QuoteLogEntry> Quotes => QuoteLogs ?? [];
     public IReadOnlyList<SmsLogEntry> Sms => SmsLogs ?? [];
-    public int TotalCount => Logs.Count + Quotes.Count + Sms.Count;
+    public IReadOnlyList<ProposalStepLog> ProposalSteps => ProposalStepLogs ?? [];
+    public IReadOnlyList<WinsureTransaction> Winsure => WinsureLogs ?? [];
+    public IReadOnlyList<PaymentTransaction> Payments => PaymentLogs ?? [];
+    public int TotalCount => Logs.Count + Quotes.Count + Sms.Count + ProposalSteps.Count + Winsure.Count + Payments.Count;
 }
 
 /// Saf (I/O'suz) log üretim motoru: aynı senaryo + kullanıcılar + seed + "şimdi" her zaman aynı logları üretir.
@@ -53,6 +59,8 @@ public sealed class ScenarioEngine
         var correlationIds = new List<string>();
         var datePart = nowUtc.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var spacing = scenario.Users.SpacingMs;
+
+        if (scenario.Purchase is { } purchase) return GeneratePurchase(purchase, selected, rng, seed, nowUtc, datePart, spacing);
 
         for (var i = 0; i < selected.Count; i++)
         {
@@ -122,6 +130,42 @@ public sealed class ScenarioEngine
             logs.OrderBy(l => l.Timestamp).ToList(), correlationIds, seed,
             quotes.OrderBy(q => q.Timestamp).ToList(), sms.OrderBy(m => m.Timestamp).ToList());
     }
+
+    /// Satın alma akışı: her müşteri için üç tabloya dağıtık loglar; tamamı nowUtc'de veya öncesinde biter.
+    private static ScenarioRun GeneratePurchase(PurchaseFlow flow, List<User> users, Random rng, int seed, DateTime nowUtc, string datePart, int spacing)
+    {
+        var items = new List<PurchaseFlowBuilder.Item>();
+        for (var i = 0; i < users.Count; i++)
+            items.AddRange(PurchaseFlowBuilder.Build(flow, users[i], rng, datePart, i * spacing));
+        if (items.Count == 0) return new ScenarioRun([], [], seed);
+
+        var start = nowUtc.AddMilliseconds(-items.Max(x => x.OffsetMs));
+        DateTime At(PurchaseFlowBuilder.Item x) => start.AddMilliseconds(x.OffsetMs);
+        var steps = items.Where(x => x.Log is ProposalStepLog).Select(x => With((ProposalStepLog)x.Log, At(x))).OrderBy(x => x.Timestamp).ToList();
+        var winsure = items.Where(x => x.Log is WinsureTransaction).Select(x => With((WinsureTransaction)x.Log, At(x))).OrderBy(x => x.Timestamp).ToList();
+        var payments = items.Where(x => x.Log is PaymentTransaction).Select(x => With((PaymentTransaction)x.Log, At(x))).OrderBy(x => x.Timestamp).ToList();
+        return new ScenarioRun([], [], seed, [], [], steps, winsure, payments);
+    }
+
+    private static ProposalStepLog With(ProposalStepLog l, DateTime t) => new()
+    {
+        Timestamp = t, Level = l.Level, ProposalNo = l.ProposalNo, SessionId = l.SessionId, UserIdentityNo = l.UserIdentityNo, Product = l.Product,
+        Step = l.Step, Status = l.Status, RequestJson = l.RequestJson, ResponseJson = l.ResponseJson, ErrorCode = l.ErrorCode,
+        ErrorMessage = l.ErrorMessage, DurationMs = l.DurationMs
+    };
+
+    private static WinsureTransaction With(WinsureTransaction l, DateTime t) => new()
+    {
+        Timestamp = t, Level = l.Level, PolicyNo = l.PolicyNo, Operation = l.Operation, Status = l.Status, PolicyStatus = l.PolicyStatus,
+        RequestXml = l.RequestXml, ResponseXml = l.ResponseXml, ErrorCode = l.ErrorCode, ErrorMessage = l.ErrorMessage, DurationMs = l.DurationMs
+    };
+
+    private static PaymentTransaction With(PaymentTransaction l, DateTime t) => new()
+    {
+        Timestamp = t, Level = l.Level, PolicyNo = l.PolicyNo, ClientReferenceCode = l.ClientReferenceCode, Stage = l.Stage, Status = l.Status,
+        Provider = l.Provider, Amount = l.Amount, ProviderCode = l.ProviderCode, ErrorCode = l.ErrorCode, ErrorMessage = l.ErrorMessage,
+        ResponseRaw = l.ResponseRaw, DurationMs = l.DurationMs
+    };
 
     private static List<User> SelectUsers(Scenario scenario, IReadOnlyList<User> allUsers, Random rng)
     {

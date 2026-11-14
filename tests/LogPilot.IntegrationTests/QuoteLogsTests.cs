@@ -3,6 +3,7 @@ using System.Text.Json;
 using AwesomeAssertions;
 using LogPilot.Application.Ai;
 using LogPilot.Application.Quotes;
+using LogPilot.Application.Purchases;
 using LogPilot.Application.Notifications;
 using LogPilot.Application.Users;
 using LogPilot.Domain.Quotes;
@@ -116,5 +117,27 @@ public class QuoteLogsTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var json = await factory.CreateClient().GetFromJsonAsync<JsonElement>($"/api/logs/{smsId}");
         json.GetProperty("application").GetString().Should().Be("SmsGateway");
         json.GetProperty("metadata").GetProperty("phone").GetString().Should().StartWith("+90").And.Contain("*");
+    }
+
+    [MongoFact]
+    public async Task A_declined_purchase_is_traced_from_the_policy_number_through_the_payment_reference_in_mongo()
+    {
+        using var scope = await SeedAsync(("purchase-payment-declined", 51, "ELIF"));
+        var tools = scope.ServiceProvider.GetRequiredService<ILogAnalysisTools>();
+        var ctx = new ToolContext(DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddMinutes(1));
+        var steps = await tools.SearchProposalStepsAsync(new SearchProposalStepsArgs(UserCode: "ELIF", Step: "PolicyCreate"), ctx, CancellationToken.None);
+        var policyNo = steps.Logs.First().Metadata["policyNo"];
+
+        var trace = await tools.TracePolicyPurchaseAsync(new PurchaseTraceArgs(PolicyNo: policyNo), ctx, CancellationToken.None);
+
+        trace.Path.Select(h => h.Source).Should().Equal("winsure_transactions", "payment_transactions", "payment_transactions", "proposal_step_logs", "users");
+        trace.Verdict.Should().Be("PaymentFailed");
+        trace.Customer!.UserCode.Should().Be("ELIF");
+        var declined = trace.Evidence.Single(l => l.ErrorCode == "PAYMENT_DECLINED");
+        declined.Metadata["policyNo"].Should().Be("(empty)", "the provider row has no policyNo and was joined by clientReferenceCode");
+
+        var json = await factory.CreateClient().GetFromJsonAsync<JsonElement>($"/api/logs/{declined.Id}");
+        json.GetProperty("application").GetString().Should().Be("PaymentGateway");
+        json.GetProperty("metadata").GetProperty("providerCode").GetString().Should().Be("51");
     }
 }

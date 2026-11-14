@@ -1,0 +1,26 @@
+{
+  "id": "purchase-approve-rejected",
+  "name": "Purchase: paid but Winsure rejected the approval",
+  "description": "The payment succeeds but Winsure refuses to approve the policy (open damage claim, WS-4012). The customer has been charged without an approved policy: refund or manual approval is needed.",
+  "kind": "Incident",
+  "users": {
+    "status": "Active",
+    "role": "Customer",
+    "minCount": 1,
+    "maxCount": 1,
+    "spacingMs": 0
+  },
+  "settings": {
+    "enabled": true,
+    "intervalSeconds": 360,
+    "probability": 0.5
+  },
+  "purchase": {
+    "outcome": "ApproveRejected",
+    "products": [
+      "Kasko"
+    ],
+    "provider": "VPOS_A"
+  },
+  "steps": []
+}

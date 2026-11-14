@@ -25,6 +25,29 @@ public sealed class Scenario
 
     /// Senaryoda `target: "Quote"` adımı varsa zorunlu: teklifin kanalı ve ürünü.
     public QuoteFlow? Quote { get; init; }
+
+    /// Kurumsal web poliçe satın alma akışı. Doluysa motor adımları değil bu akışı üretir
+    /// (proposal_step_logs + winsure_transactions + payment_transactions).
+    public PurchaseFlow? Purchase { get; init; }
+}
+
+/// Satın almanın nasıl sonuçlanacağı. Her sonuç, hatanın FARKLI bir tabloda görünmesini sağlar.
+public enum PurchaseOutcome
+{
+    Completed,              // her şey başarılı
+    PaymentDeclined,        // banka reddi (payment_transactions sağlayıcı kaydı, policyNo boş)
+    Payment3dsFailed,       // 3D Secure başarısız (payment_transactions)
+    PaymentNoCallback,      // sağlayıcıdan sonuç gelmedi (payment_transactions'ta sadece Initiated var)
+    ApproveRejected,        // ödeme alındı ama Winsure onay vermedi (winsure_transactions Approve)
+    WinsureCreateTimeout,   // poliçe hiç oluşturulamadı (winsure_transactions Create), ödemeye geçilmedi
+    CancelledAfterPurchase  // satın alındı, sonra iptal edildi (Winsure Cancel + ödeme iadesi)
+}
+
+public sealed class PurchaseFlow
+{
+    public PurchaseOutcome Outcome { get; init; } = PurchaseOutcome.Completed;
+    public List<string> Products { get; init; } = ["Kasko"];
+    public string Provider { get; init; } = "VPOS_A";
 }
 
 /// Bir teklif akışının bağlamı. Ürün akış başına listeden seçilir.

@@ -4,6 +4,8 @@ using LogPilot.Application.Incidents;
 using LogPilot.Application.Logs;
 using LogPilot.Application.Quotes;
 using LogPilot.Application.Notifications;
+using LogPilot.Application.Purchases;
+using LogPilot.Domain.Purchases;
 using LogPilot.Domain.Notifications;
 using LogPilot.Application.Users;
 using LogPilot.Domain.Analytics;
@@ -16,8 +18,94 @@ namespace LogPilot.UnitTests.Evaluation;
 
 /// Değerlendirme testleri için bellek içi veri deposu. Üretim kodunun KULLANDIĞI arayüzleri uygular; böylece gerçek
 /// araçlar ve analitik servisler (AnalyticsService, LogAnalysisTools) MongoDB olmadan uçtan uca çalıştırılabilir.
-internal sealed class InMemoryStore : ILogRepository, ILogAnalyticsRepository, IIncidentRepository, IQuoteLogRepository, IUserRepository, ISmsLogRepository
+internal sealed class InMemoryStore : ILogRepository, ILogAnalyticsRepository, IIncidentRepository, IQuoteLogRepository, IUserRepository, ISmsLogRepository, IPurchaseLogRepository
 {
+    public List<ProposalStepLog> ProposalSteps { get; } = [];
+    public List<WinsureTransaction> Winsure { get; } = [];
+    public List<PaymentTransaction> Payments { get; } = [];
+
+    // ---------------- IPurchaseLogRepository ----------------
+    public Task AddManyAsync(IReadOnlyCollection<ProposalStepLog> steps, IReadOnlyCollection<WinsureTransaction> winsure,
+        IReadOnlyCollection<PaymentTransaction> payments, CancellationToken ct)
+    {
+        AddPurchases(steps, winsure, payments);
+        return Task.CompletedTask;
+    }
+
+    public void AddPurchases(IEnumerable<ProposalStepLog> steps, IEnumerable<WinsureTransaction> winsure, IEnumerable<PaymentTransaction> payments)
+    {
+        foreach (var s in steps)
+            ProposalSteps.Add(new ProposalStepLog
+            {
+                Id = $"{_next++:x24}", Timestamp = s.Timestamp, Level = s.Level, ProposalNo = s.ProposalNo, SessionId = s.SessionId,
+                UserIdentityNo = s.UserIdentityNo, Product = s.Product, Step = s.Step, Status = s.Status, RequestJson = s.RequestJson,
+                ResponseJson = s.ResponseJson, ErrorCode = s.ErrorCode, ErrorMessage = s.ErrorMessage, DurationMs = s.DurationMs
+            });
+        foreach (var w in winsure)
+            Winsure.Add(new WinsureTransaction
+            {
+                Id = $"{_next++:x24}", Timestamp = w.Timestamp, Level = w.Level, PolicyNo = w.PolicyNo, Operation = w.Operation, Status = w.Status,
+                PolicyStatus = w.PolicyStatus, RequestXml = w.RequestXml, ResponseXml = w.ResponseXml, ErrorCode = w.ErrorCode,
+                ErrorMessage = w.ErrorMessage, DurationMs = w.DurationMs
+            });
+        foreach (var p in payments)
+            Payments.Add(new PaymentTransaction
+            {
+                Id = $"{_next++:x24}", Timestamp = p.Timestamp, Level = p.Level, PolicyNo = p.PolicyNo, ClientReferenceCode = p.ClientReferenceCode,
+                Stage = p.Stage, Status = p.Status, Provider = p.Provider, Amount = p.Amount, ProviderCode = p.ProviderCode, ErrorCode = p.ErrorCode,
+                ErrorMessage = p.ErrorMessage, ResponseRaw = p.ResponseRaw, DurationMs = p.DurationMs
+            });
+    }
+
+    private static PagedResult<T> Page<T>(IEnumerable<T> q, Func<T, DateTime> ts, bool asc, int limit)
+    {
+        var all = q.ToList();
+        var items = (asc ? all.OrderBy(ts) : all.OrderByDescending(ts)).Take(limit).ToList();
+        return new PagedResult<T>(items, all.Count, 1, limit);
+    }
+
+    public Task<PagedResult<ProposalStepLog>> SearchProposalStepsAsync(ProposalStepSearch r, CancellationToken ct)
+    {
+        var q = ProposalSteps.Where(l => l.Timestamp >= r.From && l.Timestamp < r.To);
+        if (r.IdentityNos is { Count: > 0 }) q = q.Where(l => r.IdentityNos.Contains(l.UserIdentityNo));
+        if (r.ProposalNo is not null) q = q.Where(l => l.ProposalNo == r.ProposalNo);
+        if (r.Step is not null) q = q.Where(l => l.Step == r.Step);
+        if (r.OnlyErrors) q = q.Where(l => l.Status == ProposalStepStatus.Error);
+        if (r.ResponseContains is not null) q = q.Where(l => l.ResponseJson?.Contains(r.ResponseContains) == true);
+        return Task.FromResult(Page(q, l => l.Timestamp, r.Ascending, r.Limit));
+    }
+
+    public Task<PagedResult<WinsureTransaction>> SearchWinsureAsync(WinsureSearch r, CancellationToken ct)
+    {
+        var q = Winsure.Where(l => l.Timestamp >= r.From && l.Timestamp < r.To);
+        if (r.PolicyNos is { Count: > 0 }) q = q.Where(l => r.PolicyNos.Contains(l.PolicyNo));
+        if (r.Operation is { } op) q = q.Where(l => l.Operation == op);
+        if (r.OnlyFailed) q = q.Where(l => l.Status == WinsureStatus.Failed);
+        return Task.FromResult(Page(q, l => l.Timestamp, r.Ascending, r.Limit));
+    }
+
+    public Task<PagedResult<PaymentTransaction>> SearchPaymentsAsync(PaymentSearch r, CancellationToken ct)
+    {
+        var q = Payments.Where(l => l.Timestamp >= r.From && l.Timestamp < r.To);
+        if (r.PolicyNos is { Count: > 0 }) q = q.Where(l => l.PolicyNo is not null && r.PolicyNos.Contains(l.PolicyNo));
+        if (r.ClientReferenceCodes is { Count: > 0 }) q = q.Where(l => r.ClientReferenceCodes.Contains(l.ClientReferenceCode));
+        if (r.Stage is { } st) q = q.Where(l => l.Stage == st);
+        if (r.OnlyFailed) q = q.Where(l => l.Status == PaymentStatus.Failed);
+        return Task.FromResult(Page(q, l => l.Timestamp, r.Ascending, r.Limit));
+    }
+
+    public Task<ProposalStepLog?> GetProposalStepByIdAsync(string id, CancellationToken ct) => Task.FromResult(ProposalSteps.FirstOrDefault(x => x.Id == id));
+    public Task<WinsureTransaction?> GetWinsureByIdAsync(string id, CancellationToken ct) => Task.FromResult(Winsure.FirstOrDefault(x => x.Id == id));
+    public Task<PaymentTransaction?> GetPaymentByIdAsync(string id, CancellationToken ct) => Task.FromResult(Payments.FirstOrDefault(x => x.Id == id));
+
+    public Task<PurchaseWindow> GetWindowAsync(DateTime from, DateTime to, CancellationToken ct)
+        => Task.FromResult(new PurchaseWindow(
+            ProposalSteps.Where(x => x.Timestamp >= from && x.Timestamp < to).ToList(),
+            Winsure.Where(x => x.Timestamp >= from && x.Timestamp < to).ToList(),
+            Payments.Where(x => x.Timestamp >= from && x.Timestamp < to).ToList()));
+
+    Task<long> IPurchaseLogReader.GetEstimatedCountAsync(CancellationToken ct) => Task.FromResult((long)ProposalSteps.Count);
+
     public List<SmsLogEntry> SmsLogs { get; } = [];
 
     public void AddSms(IEnumerable<SmsLogEntry> entries)

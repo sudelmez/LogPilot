@@ -4,6 +4,7 @@ using LogPilot.Application.Incidents;
 using LogPilot.Application.Knowledge;
 using LogPilot.Application.Logs;
 using LogPilot.Application.Notifications;
+using LogPilot.Application.Purchases;
 using LogPilot.Application.Quotes;
 using LogPilot.Application.Users;
 using LogPilot.Domain.Incidents;
@@ -21,7 +22,8 @@ public sealed partial class LogAnalysisTools(
     IKnowledgeReader? knowledge = null,
     IQuoteLogReader? quotes = null,
     IUserReader? users = null,
-    ISmsLogReader? sms = null) : ILogAnalysisTools
+    ISmsLogReader? sms = null,
+    IPurchaseLogReader? purchases = null) : ILogAnalysisTools
 {
     // Teklif araçları (LogAnalysisTools.Quotes.cs) bu erişimcileri kullanır.
     private ILogReader AppLogs => logs;
@@ -29,6 +31,7 @@ public sealed partial class LogAnalysisTools(
     private IUserReader? Users => users;
     private SensitiveDataMasker Masker => masker;
     private ISmsLogReader? SmsLogs => sms;
+    private IPurchaseLogReader? Purchases => purchases;
 
     public const int MaxKnowledgeResults = 5;
     public const int MaxResults = 50;

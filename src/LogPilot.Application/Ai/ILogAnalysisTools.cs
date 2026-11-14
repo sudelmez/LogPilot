@@ -22,4 +22,11 @@ public interface ILogAnalysisTools
     // ---- Bildirim (sms_logs): zincirleme quote_logs → users → sms_logs ----
     Task<NotificationTraceToolResult> TraceNotificationDeliveryAsync(NotificationTraceArgs args, ToolContext context, CancellationToken ct);
     Task<LogToolResult> SearchSmsLogsAsync(SearchSmsLogsArgs args, ToolContext context, CancellationToken ct);
+
+    // ---- Kurumsal web satın alma: proposal_step_logs → winsure_transactions → payment_transactions ----
+    Task<PurchaseTraceToolResult> TracePolicyPurchaseAsync(PurchaseTraceArgs args, ToolContext context, CancellationToken ct);
+    Task<LogToolResult> SearchProposalStepsAsync(SearchProposalStepsArgs args, ToolContext context, CancellationToken ct);
+    Task<LogToolResult> SearchWinsureTransactionsAsync(SearchWinsureArgs args, ToolContext context, CancellationToken ct);
+    Task<LogToolResult> SearchPaymentTransactionsAsync(SearchPaymentsArgs args, ToolContext context, CancellationToken ct);
+    Task<PurchaseStatsToolResult> GetPurchaseStatsAsync(PurchaseStatsArgs args, ToolContext context, CancellationToken ct);
 }

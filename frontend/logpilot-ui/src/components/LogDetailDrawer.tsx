@@ -3,6 +3,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useLog } from '../api/hooks';
 import { formatDateTime } from '../lib/format';
 import { SeverityChip } from './Chips';
+import { AskButton, Code } from './ui';
+import { askAboutLog } from '../lib/ask';
+import { MONO } from '../theme';
 
 interface Props {
   logId: string | null;
@@ -29,8 +32,12 @@ export default function LogDetailDrawer({ logId, onClose, onFilter }: Props) {
           <Stack spacing={2}>
             <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
               <SeverityChip level={log.level} />
-              <Typography variant="body2" color="text.secondary">{formatDateTime(log.timestamp)}</Typography>
+              {log.errorCode && <Code tone={log.level === 'Warning' ? 'warning' : 'error'}>{log.errorCode}</Code>}
+              <Typography variant="body2" color="text.secondary" sx={{ fontFamily: MONO, fontSize: 12 }}>{formatDateTime(log.timestamp)}</Typography>
+              <Box sx={{ flex: 1 }} />
+              {log.level !== 'Information' && log.level !== 'Debug' && <AskButton question={askAboutLog(log)} />}
             </Stack>
+            <Typography variant="caption" color="text.secondary">{log.application} · {log.service}{log.userCode ? ` · ${log.userCode}` : ''}</Typography>
 
             <Typography variant="body1">{log.message}</Typography>
 
@@ -53,11 +60,11 @@ export default function LogDetailDrawer({ logId, onClose, onFilter }: Props) {
             </Stack>
 
             <Divider />
-            <Typography variant="overline" color="text.secondary">Raw document</Typography>
+            <Typography variant="subtitle2" color="text.secondary">Raw document</Typography>
             <Box
               component="pre"
               sx={{
-                m: 0, p: 2, borderRadius: 2, bgcolor: 'grey.100', fontSize: 12.5,
+                m: 0, p: 1.5, borderRadius: 2, bgcolor: 'background.raised', border: 1, borderColor: 'divider', fontSize: 12, lineHeight: 1.55,
                 overflow: 'auto', maxHeight: '55vh', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
               }}
             >
